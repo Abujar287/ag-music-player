@@ -1,6 +1,8 @@
 package com.ag.musicplayer
 
 import android.Manifest
+import android.app.Activity
+import android.app.RecoverableSecurityException
 import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Intent
@@ -21,6 +23,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -57,14 +60,71 @@ class MainActivity : ComponentActivity() {
     private var mediaController: MediaController? = null
     private var progressJob: Job? = null
     private var pendingPlayAction: (() -> Unit)? = null
+    private var currentPlayingUri: Uri? = null
     private var isPageReady = false
+    @Volatile
     private var hasScannedThisSession = false
+
+    private var pendingDeleteTrackId: String? = null
+    private var pendingDeleteUri: Uri? = null
+    private var pendingDeleteFilePath: String? = null
+    private var pendingDeleteIsCreateRequest: Boolean = false
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         if (hasAudioPermission()) {
             scanLocalAudioAndNotify(isManual = false)
+        }
+    }
+
+    private val deleteLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        val trackId = pendingDeleteTrackId
+        val uri = pendingDeleteUri
+        val filePath = pendingDeleteFilePath
+        val isCreateRequest = pendingDeleteIsCreateRequest
+        pendingDeleteTrackId = null
+        pendingDeleteUri = null
+        pendingDeleteFilePath = null
+        pendingDeleteIsCreateRequest = false
+
+        if (trackId == null) return@registerForActivityResult
+
+        if (result.resultCode == Activity.RESULT_OK) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                var deleted = isCreateRequest
+                if (!isCreateRequest && uri != null) {
+                    try {
+                        deleted = contentResolver.delete(uri, null, null) > 0
+                    } catch (_: Exception) {
+                        deleted = false
+                    }
+                }
+                if (!deleted && !filePath.isNullOrBlank()) {
+                    try {
+                        val file = File(filePath)
+                        if (file.exists()) {
+                            deleted = file.delete()
+                        }
+                    } catch (_: Exception) {}
+                }
+                withContext(Dispatchers.Main) {
+                    if (deleted) {
+                        if (uri != null && currentPlayingUri == uri) {
+                            mediaController?.stop()
+                            mediaController?.clearMediaItems()
+                            currentPlayingUri = null
+                        }
+                        notifyTrackDeleted(trackId, true, null)
+                    } else {
+                        notifyTrackDeleted(trackId, false, "Could not delete audio file from storage")
+                    }
+                }
+            }
+        } else {
+            notifyTrackDeleted(trackId, false, "Delete permission cancelled")
         }
     }
 
@@ -228,6 +288,9 @@ class MainActivity : ComponentActivity() {
             perms.add(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             perms.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
         }
         permissionLauncher.launch(perms.toTypedArray())
     }
@@ -335,6 +398,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     Uri.parse(uriStr)
                 }
+                currentPlayingUri = mediaUri
                 val metaBuilder = MediaMetadata.Builder()
                     .setTitle(title)
                     .setArtist(artist)
@@ -396,6 +460,79 @@ class MainActivity : ComponentActivity() {
                 args
             )
         }
+    }
+
+    fun deleteDeviceTrack(trackId: String, contentUriStr: String, filePath: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val uri = contentUriStr.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && uri != null) {
+                    val deletePendingIntent = MediaStore.createDeleteRequest(contentResolver, listOf(uri))
+                    withContext(Dispatchers.Main) {
+                        pendingDeleteTrackId = trackId
+                        pendingDeleteUri = uri
+                        pendingDeleteFilePath = filePath
+                        pendingDeleteIsCreateRequest = true
+                        deleteLauncher.launch(
+                            IntentSenderRequest.Builder(deletePendingIntent.intentSender).build()
+                        )
+                    }
+                    return@launch
+                }
+
+                var deleted = false
+                if (uri != null) {
+                    try {
+                        deleted = contentResolver.delete(uri, null, null) > 0
+                    } catch (securityEx: SecurityException) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && securityEx is RecoverableSecurityException) {
+                            withContext(Dispatchers.Main) {
+                                pendingDeleteTrackId = trackId
+                                pendingDeleteUri = uri
+                                pendingDeleteFilePath = filePath
+                                pendingDeleteIsCreateRequest = false
+                                deleteLauncher.launch(
+                                    IntentSenderRequest.Builder(securityEx.userAction.actionIntent.intentSender).build()
+                                )
+                            }
+                            return@launch
+                        }
+                        throw securityEx
+                    }
+                }
+
+                if (!deleted && filePath.isNotBlank()) {
+                    val file = File(filePath)
+                    if (file.exists()) {
+                        deleted = file.delete()
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    if (deleted) {
+                        if (uri != null && currentPlayingUri == uri) {
+                            mediaController?.stop()
+                            mediaController?.clearMediaItems()
+                            currentPlayingUri = null
+                        }
+                        notifyTrackDeleted(trackId, true, null)
+                    } else {
+                        notifyTrackDeleted(trackId, false, "Unable to delete file from storage")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("AGPlayer", "Failed to delete track: ${e.message}", e)
+                withContext(Dispatchers.Main) {
+                    notifyTrackDeleted(trackId, false, e.localizedMessage ?: "Delete failed")
+                }
+            }
+        }
+    }
+
+    private fun notifyTrackDeleted(trackId: String, success: Boolean, errorMsg: String?) {
+        val quotedId = JSONObject.quote(trackId)
+        val quotedErr = if (errorMsg != null) JSONObject.quote(errorMsg) else "null"
+        evalJs("window.__agOnTrackDeleted?.($quotedId, $success, $quotedErr);")
     }
 
     override fun onDestroy() {
@@ -487,5 +624,10 @@ class WebAppInterface(private val activity: MainActivity, private val updateMana
             val bands = IntArray(arr.length()) { i -> arr.optInt(i, 0) }
             activity.applyNativeEqualizer(enabled, bands, virtualizer)
         } catch (_: Exception) {}
+    }
+
+    @JavascriptInterface
+    fun deleteDeviceTrack(trackId: String, contentUri: String, filePath: String) {
+        activity.deleteDeviceTrack(trackId, contentUri, filePath)
     }
 }

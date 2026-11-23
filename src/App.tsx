@@ -28,6 +28,7 @@ import {
   ChevronLeft,
   ShieldCheck,
   Video,
+  RefreshCw,
 } from 'lucide-react';
 import { audioEngine } from './audio/AudioEngine';
 import {
@@ -169,8 +170,22 @@ export default function App() {
   const [sleepTimerOpen, setSleepTimerOpen] = useState(false);
   const [updateState, setUpdateState] = useState<UpdateFlowState>({ status: 'idle' });
   const [toast, setToast] = useState<string | null>(null);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const downloadTimerRef = useRef<number | null>(null);
+  const pullStartYRef = useRef<number | null>(null);
+  const refreshTimerRef = useRef<number | null>(null);
+  const tracksRef = useRef<Track[]>(tracks);
+  const currentTrackIdRef = useRef<string>(currentTrackId);
+
+  useEffect(() => {
+    tracksRef.current = tracks;
+  }, [tracks]);
+
+  useEffect(() => {
+    currentTrackIdRef.current = currentTrackId;
+  }, [currentTrackId]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -254,15 +269,77 @@ export default function App() {
   useEffect(() => {
     const win = window as unknown as {
       __agOnDeviceTracks?: (incoming: Track[], isManual?: boolean) => void;
+      __agOnTrackDeleted?: (trackId: string, success: boolean, errorMsg?: string | null) => void;
     };
     win.__agOnDeviceTracks = (incoming: Track[], isManual = false) => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      setIsRefreshing(false);
       applyScannedTracks(incoming, isManual);
     };
+    win.__agOnTrackDeleted = (trackId: string, success: boolean, errorMsg?: string | null) => {
+      if (!success) {
+        showToast(errorMsg || 'Unable to delete audio file from storage');
+        return;
+      }
+      const deletedTrack = tracksRef.current.find((t) => t.id === trackId);
+      if (trackId === currentTrackIdRef.current) {
+        audioEngine.pause();
+        setIsPlaying(false);
+        setPositionSec(0);
+      }
+      setTracks((prev) => prev.filter((t) => t.id !== trackId));
+      setQueue((prev) => prev.filter((t) => t.id !== trackId));
+      setPlaylists((prev) =>
+        prev.map((pl) => ({ ...pl, trackIds: pl.trackIds.filter((id) => id !== trackId) }))
+      );
+      showToast(
+        deletedTrack
+          ? `Deleted "${deletedTrack.title}" from device`
+          : 'Audio file deleted from device'
+      );
+    };
+
     scanDeviceStorage(false);
     return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
       delete win.__agOnDeviceTracks;
+      delete win.__agOnTrackDeleted;
     };
-  }, [applyScannedTracks, scanDeviceStorage]);
+  }, [applyScannedTracks, scanDeviceStorage, showToast]);
+
+  const handlePullRefresh = useCallback(() => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+
+    const bridge = (window as unknown as {
+      AndroidBridge?: {
+        hasAudioPermission?: () => boolean;
+        requestPermissionAndScan?: () => void;
+        scanLocalAudioAsync?: (manual: boolean) => void;
+      };
+    }).AndroidBridge;
+
+    if (bridge && typeof bridge.scanLocalAudioAsync === 'function') {
+      if (typeof bridge.hasAudioPermission === 'function' && !bridge.hasAudioPermission()) {
+        bridge.requestPermissionAndScan?.();
+        refreshTimerRef.current = window.setTimeout(() => setIsRefreshing(false), 1200);
+        return;
+      }
+      bridge.scanLocalAudioAsync(true);
+      refreshTimerRef.current = window.setTimeout(() => setIsRefreshing(false), 3500);
+    } else {
+      scanDeviceStorage(true);
+      refreshTimerRef.current = window.setTimeout(() => setIsRefreshing(false), 600);
+    }
+  }, [isRefreshing, scanDeviceStorage]);
 
   // Persist state (cache device tracks locally so opening the app shows songs immediately)
   useEffect(() => {
@@ -631,6 +708,21 @@ export default function App() {
   };
 
   const handleDeleteTrack = (track: Track) => {
+    const bridge = (window as unknown as {
+      AndroidBridge?: {
+        deleteDeviceTrack?: (trackId: string, contentUri: string, filePath: string) => void;
+      };
+    }).AndroidBridge;
+
+    if (
+      bridge &&
+      typeof bridge.deleteDeviceTrack === 'function' &&
+      (track.contentUri || track.filePath)
+    ) {
+      bridge.deleteDeviceTrack(track.id, track.contentUri ?? '', track.filePath ?? '');
+      return;
+    }
+
     if (track.id === currentTrack?.id) {
       audioEngine.pause();
       setIsPlaying(false);
@@ -1095,10 +1187,82 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 pt-5 pb-28 lg:pb-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left/Primary Column: 4 Large Category Grid + Genres + Active View + Playlists */}
+      {/* Main Content Workspace (with Pull-to-Refresh gesture support) */}
+      <main
+        onTouchStart={(e) => {
+          const modalOpen =
+            drawerOpen ||
+            nowPlayingOpen ||
+            Boolean(editTagTrack) ||
+            Boolean(addToPlaylistTrack) ||
+            sleepTimerOpen ||
+            playlistModal.open ||
+            updateState.status !== 'idle';
+          if (modalOpen || isRefreshing) return;
+          const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+          if (scrollTop <= 2 && e.touches.length === 1) {
+            pullStartYRef.current = e.touches[0].clientY;
+          }
+        }}
+        onTouchMove={(e) => {
+          if (pullStartYRef.current === null || isRefreshing) return;
+          const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+          if (scrollTop > 2) {
+            pullStartYRef.current = null;
+            setPullDistance(0);
+            return;
+          }
+          const deltaY = e.touches[0].clientY - pullStartYRef.current;
+          if (deltaY > 8) {
+            setPullDistance(Math.min(84, (deltaY - 8) * 0.45));
+          } else if (deltaY < 0) {
+            pullStartYRef.current = null;
+            setPullDistance(0);
+          }
+        }}
+        onTouchEnd={() => {
+          if (pullStartYRef.current === null) return;
+          const shouldRefresh = pullDistance >= 52 && !isRefreshing;
+          pullStartYRef.current = null;
+          setPullDistance(0);
+          if (shouldRefresh) {
+            handlePullRefresh();
+          }
+        }}
+        onTouchCancel={() => {
+          pullStartYRef.current = null;
+          setPullDistance(0);
+        }}
+        className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 pt-5 pb-28 lg:pb-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+      >
+        {/* Left/Primary Column: Pull-to-Refresh Indicator + 6 Category Cards + Active View + Playlists */}
         <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+          {(pullDistance > 0 || isRefreshing) && (
+            <div
+              className="flex items-center justify-center gap-2.5 overflow-hidden transition-all duration-150 text-xs font-medium text-[var(--accent)]"
+              style={{
+                height: isRefreshing ? 40 : Math.max(28, Math.round(pullDistance * 0.55)),
+                opacity: isRefreshing ? 1 : Math.min(1, pullDistance / 36),
+              }}
+            >
+              <RefreshCw
+                className={`w-4 h-4 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`}
+                style={
+                  !isRefreshing
+                    ? { transform: `rotate(${Math.round(pullDistance * 3.5)}deg)` }
+                    : undefined
+                }
+              />
+              <span>
+                {isRefreshing
+                  ? 'Scanning device audio...'
+                  : pullDistance >= 52
+                    ? 'Release to refresh audio files'
+                    : 'Pull down to refresh'}
+              </span>
+            </div>
+          )}
+
           {/* Auto-Sync Permission Banner (only shown if permission disabled) */}
           {!settings.autoSyncPermission && (
             <div className="p-4 rounded-2xl bg-[var(--accent-soft)] border border-[var(--accent)]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1123,8 +1287,8 @@ export default function App() {
             </div>
           )}
 
-          {/* 2 Rows x 3 Columns Category Grid: Tracks, Albums, Artists / Genres, Videos, Folders */}
-          <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5">
+          {/* 2 Rows x 3 Columns Enlarged Category Grid: Tracks, Albums, Artists / Genres, Videos, Folders */}
+          <div className="grid grid-cols-3 gap-3 sm:gap-4">
             {categoryGridItems.map((cat) => {
               const Icon = cat.icon;
               const active = activeTab === cat.id && !drillFilter;
@@ -1135,27 +1299,27 @@ export default function App() {
                     setActiveTab(cat.id);
                     setDrillFilter(null);
                   }}
-                  className={`min-h-[88px] sm:min-h-[98px] p-3 sm:p-4 rounded-2xl border text-left flex flex-col justify-between transition-all ${
+                  className={`min-h-[112px] sm:min-h-[130px] p-3.5 sm:p-5 rounded-2xl border text-left flex flex-col justify-between transition-all duration-150 active:scale-[0.98] ${
                     active
                       ? 'border-[var(--accent)] bg-[var(--accent-soft)] shadow-md'
                       : 'border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-[#141417] hover:border-[var(--accent)]/50'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center justify-between gap-2">
                     <div
-                      className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shrink-0 ${
                         active
                           ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
                           : 'bg-black/10 dark:bg-white/10 text-[var(--accent)]'
                       }`}
                     >
-                      <Icon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+                      <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
-                    <span className="text-[11px] sm:text-xs font-mono-tabular text-[#6B675E] dark:text-[#9E9A90]">
+                    <span className="text-sm sm:text-base font-bold font-mono-tabular text-[#6B675E] dark:text-[#9E9A90]">
                       {cat.countLabel}
                     </span>
                   </div>
-                  <span className="text-xs sm:text-sm font-bold tracking-tight mt-2.5 truncate">
+                  <span className="text-sm sm:text-base font-bold tracking-tight mt-3 truncate">
                     {cat.label}
                   </span>
                 </button>
@@ -1311,10 +1475,10 @@ export default function App() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">{fld.name}</p>
-                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] font-mono-tabular truncate">
-                        {fld.path} · {fld.count} audio file{fld.count === 1 ? '' : 's'}
-                      </p>
                     </div>
+                    <span className="text-xs font-mono-tabular text-[#6B675E] dark:text-[#9E9A90] shrink-0">
+                      {fld.count} {fld.count === 1 ? 'track' : 'tracks'}
+                    </span>
                   </button>
                 ))}
               </div>
