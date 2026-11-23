@@ -8,13 +8,8 @@ import {
   AlertCircle,
   ImagePlus,
   Disc3,
-  FolderDown,
-  Smartphone,
+  Trash2,
 } from 'lucide-react';
-import {
-  APP_VERSION_TAG,
-  GITHUB_REPO,
-} from '../data/defaultLibrary';
 import {
   Playlist,
   SleepTimerState,
@@ -394,20 +389,18 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({
   );
 };
 
-/* 5. GitHub In-App Auto-Updater Modal */
+/* 5. Minimal In-App Auto-Updater Modal */
 interface UpdateModalProps {
   state: UpdateFlowState;
   onClose: () => void;
-  onStartDownload: () => void;
-  onSimulateUpdate: () => void;
+  onDownload: () => void;
   onTriggerInstall: () => void;
 }
 
 export const UpdateModal: React.FC<UpdateModalProps> = ({
   state,
   onClose,
-  onStartDownload,
-  onSimulateUpdate,
+  onDownload,
   onTriggerInstall,
 }) => {
   if (state.status === 'idle') return null;
@@ -418,107 +411,99 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
         className="fixed inset-0 bg-black/70 backdrop-blur-sm"
         onClick={state.status === 'downloading' ? undefined : onClose}
       />
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-[#F8F7F4] dark:bg-[#141417] border border-black/10 dark:border-white/10 p-6 shadow-2xl space-y-4">
+      <div className="relative z-10 w-full max-w-sm rounded-3xl bg-[#F8F7F4] dark:bg-[#141417] border border-black/10 dark:border-white/10 p-6 shadow-2xl">
         {state.status === 'checking' && (
-          <div className="py-6 flex flex-col items-center text-center space-y-3">
-            <RefreshCw className="w-8 h-8 text-[var(--accent)] animate-spin" />
-            <h3 className="text-base font-bold">Checking GitHub Releases...</h3>
-            <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] font-mono-tabular">
-              api.github.com/repos/{GITHUB_REPO}/releases/latest
-            </p>
+          <div className="py-4 flex flex-col items-center text-center space-y-3">
+            <RefreshCw className="w-7 h-7 text-[var(--accent)] animate-spin" />
+            <h3 className="text-base font-bold">Checking for updates...</h3>
           </div>
         )}
 
         {state.status === 'up_to_date' && (
           <div className="space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
-                <div>
-                  <h3 className="text-base font-bold">You are on the latest version</h3>
-                  <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
-                    Installed: <span className="font-mono-tabular">{state.currentVersion}</span>
-                  </p>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
               </div>
-              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
-                <X className="w-4 h-4" />
-              </button>
+              <div>
+                <h3 className="text-base font-bold">App is up to date</h3>
+                <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
+                  Current Version:{' '}
+                  <span className="font-mono-tabular font-semibold">{state.currentVersion}</span>
+                </p>
+              </div>
             </div>
-            {state.note && (
-              <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] leading-relaxed">
-                {state.note}
-              </p>
-            )}
-            <div className="flex items-center justify-between pt-2 border-t border-black/10 dark:border-white/10">
+            <div className="flex justify-end">
               <button
-                onClick={onSimulateUpdate}
-                className="text-xs font-medium text-[var(--accent)] hover:underline"
-              >
-                Preview V-1.0.2 Update Flow
-              </button>
-              <button
+                type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold"
+                className="min-h-[42px] px-5 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold"
               >
-                Done
+                OK
               </button>
             </div>
           </div>
         )}
 
         {state.status === 'available' && (
-          <div className="space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-mono-tabular text-[var(--accent)] font-semibold">
-                  {state.release.tagName} · {formatBytes(state.release.apkSizeBytes)}
-                </p>
-                <h3 className="text-lg font-bold mt-0.5">Update Available</h3>
-              </div>
-              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="space-y-5">
+            <h3 className="text-lg font-bold tracking-tight">Update Available Now</h3>
 
-            <div className="p-3.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 max-h-40 overflow-y-auto text-xs space-y-1.5">
-              <p className="font-semibold">Release Notes — {state.release.apkName}</p>
-              <p className="text-[#6B675E] dark:text-[#9E9A90] whitespace-pre-line">
-                {state.release.body}
+            <div className="space-y-1.5 text-sm">
+              <p className="text-[#6B675E] dark:text-[#9E9A90]">
+                Current Version:{' '}
+                <span className="font-mono-tabular font-semibold text-[#111114] dark:text-[#F5F3EE]">
+                  {state.currentVersionTag}
+                </span>
+              </p>
+              <p className="text-[#6B675E] dark:text-[#9E9A90]">
+                New Version:{' '}
+                <span className="font-mono-tabular font-semibold text-[var(--accent)]">
+                  v{state.release.version}
+                </span>
               </p>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex items-center justify-end gap-2">
               <button
+                type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                className="min-h-[44px] px-4 rounded-xl text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               >
-                Later
+                Cancel
               </button>
               <button
-                onClick={onStartDownload}
-                className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold flex items-center gap-2"
+                type="button"
+                onClick={onDownload}
+                className="min-h-[44px] px-5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-xs font-semibold flex items-center gap-2 transition-colors"
               >
                 <Download className="w-4 h-4" />
-                <span>Update Now</span>
+                <span>Download</span>
               </button>
             </div>
           </div>
         )}
 
         {state.status === 'downloading' && (
-          <div className="space-y-4 py-2">
-            <div className="flex items-center gap-3">
-              <FolderDown className="w-6 h-6 text-[var(--accent)] shrink-0" />
-              <div className="min-w-0">
-                <h3 className="text-base font-bold truncate">Downloading {state.release.tagName}</h3>
-                <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] font-mono-tabular truncate">
-                  {state.release.apkName}
-                </p>
-              </div>
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold tracking-tight">Update Available Now</h3>
+
+            <div className="space-y-1.5 text-sm">
+              <p className="text-[#6B675E] dark:text-[#9E9A90]">
+                Current Version:{' '}
+                <span className="font-mono-tabular font-semibold text-[#111114] dark:text-[#F5F3EE]">
+                  {state.currentVersionTag}
+                </span>
+              </p>
+              <p className="text-[#6B675E] dark:text-[#9E9A90]">
+                New Version:{' '}
+                <span className="font-mono-tabular font-semibold text-[var(--accent)]">
+                  v{state.release.version}
+                </span>
+              </p>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 pt-1">
               <div className="w-full h-2.5 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
                 <div
                   className="h-full bg-[var(--accent)] transition-all duration-150"
@@ -527,7 +512,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
               </div>
               <div className="flex items-center justify-between text-xs font-mono-tabular">
                 <span className="text-[#6B675E] dark:text-[#9E9A90]">
-                  DownloadManager · /Downloads/
+                  {formatBytes(state.downloadedBytes)} / {formatBytes(state.totalBytes)}
                 </span>
                 <span className="font-semibold text-[var(--accent)]">{state.progress}%</span>
               </div>
@@ -536,38 +521,32 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
         )}
 
         {state.status === 'ready_to_install' && (
-          <div className="space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2.5">
-                <Smartphone className="w-6 h-6 text-[var(--accent)] shrink-0" />
-                <div>
-                  <h3 className="text-base font-bold">Download Complete (100%)</h3>
-                  <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] font-mono-tabular">
-                    {state.release.apkName}
-                  </p>
-                </div>
-              </div>
-              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
-                <X className="w-4 h-4" />
-              </button>
+          <div className="space-y-5">
+            <h3 className="text-lg font-bold tracking-tight">Update Ready to Install</h3>
+
+            <div className="space-y-1.5 text-sm">
+              <p className="text-[#6B675E] dark:text-[#9E9A90]">
+                New Version:{' '}
+                <span className="font-mono-tabular font-semibold text-[var(--accent)]">
+                  v{state.release.version}
+                </span>
+              </p>
             </div>
 
-            <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] leading-relaxed">
-              Saved to System Downloads. Installing replaces {APP_VERSION_TAG} via FileProvider while preserving all your playlists, favorites, and settings.
-            </p>
-
-            <div className="flex justify-end gap-2">
+            <div className="flex items-center justify-end gap-2">
               <button
+                type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                className="min-h-[44px] px-4 rounded-xl text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               >
-                Close
+                Cancel
               </button>
               <button
+                type="button"
                 onClick={onTriggerInstall}
-                className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold"
+                className="min-h-[44px] px-5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-xs font-semibold transition-colors"
               >
-                Install / Update
+                Install
               </button>
             </div>
           </div>
@@ -575,34 +554,79 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
 
         {state.status === 'error' && (
           <div className="space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2.5">
-                <AlertCircle className="w-6 h-6 text-rose-500 shrink-0" />
-                <div>
-                  <h3 className="text-base font-bold">Update Check Issue</h3>
-                  <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">{state.message}</p>
-                </div>
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="text-base font-bold">Update Failed</h3>
+                <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">{state.message}</p>
               </div>
-              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
-                <X className="w-4 h-4" />
-              </button>
             </div>
-            <div className="flex items-center justify-between pt-2 border-t border-black/10 dark:border-white/10">
+            <div className="flex justify-end">
               <button
-                onClick={onSimulateUpdate}
-                className="text-xs font-medium text-[var(--accent)] hover:underline"
-              >
-                Preview V-1.0.2 Update Flow
-              </button>
-              <button
+                type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-black/10 dark:bg-white/10 text-xs font-semibold"
+                className="min-h-[42px] px-5 rounded-xl bg-black/10 dark:bg-white/10 text-xs font-semibold"
               >
                 Close
               </button>
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+/* 6. Delete File Confirmation Popup */
+interface DeleteConfirmModalProps {
+  track: Track | null;
+  onCancel: () => void;
+  onConfirmDelete: (track: Track) => void;
+}
+
+export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
+  track,
+  onCancel,
+  onConfirmDelete,
+}) => {
+  if (!track) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative z-10 w-full max-w-sm rounded-3xl bg-[#F8F7F4] dark:bg-[#141417] border border-black/10 dark:border-white/10 p-6 shadow-2xl space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-rose-500/15 flex items-center justify-center shrink-0">
+            <Trash2 className="w-5 h-5 text-rose-500" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-base font-bold">Are you sure you want to delete this file?</h3>
+            <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] mt-1 truncate">
+              {track.title} · {track.artist}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] leading-relaxed">
+          This will permanently remove the audio file from your device storage and library list.
+        </p>
+
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-[44px] px-4 rounded-xl text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirmDelete(track)}
+            className="min-h-[44px] px-5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-colors"
+          >
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   );

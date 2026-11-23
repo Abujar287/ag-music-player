@@ -38,7 +38,9 @@ import com.ag.musicplayer.audio.MusicPlaybackService
 import com.ag.musicplayer.data.AppSettings
 import com.ag.musicplayer.data.MediaScanner
 import com.ag.musicplayer.data.Track
+import com.ag.musicplayer.updater.GitHubRelease
 import com.ag.musicplayer.updater.GitHubUpdateManager
+import com.ag.musicplayer.updater.UpdateState
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -132,6 +134,26 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         updateManager = GitHubUpdateManager(this)
 
+        lifecycleScope.launch {
+            updateManager.state.collect { state ->
+                when (state) {
+                    is UpdateState.Downloading -> {
+                        evalJs(
+                            "window.__agUpdateCallbacks?.onProgress?.(${state.progressPercent}, ${state.bytesDownloaded}, ${state.totalBytes});"
+                        )
+                    }
+                    is UpdateState.ReadyToInstall -> {
+                        evalJs("window.__agUpdateCallbacks?.onReady?.();")
+                    }
+                    is UpdateState.Error -> {
+                        val qMsg = JSONObject.quote(state.message)
+                        evalJs("window.__agUpdateCallbacks?.onError?.($qMsg);")
+                    }
+                    else -> {}
+                }
+            }
+        }
+
         initMediaController()
 
         if (!hasAudioPermission()) {
@@ -206,6 +228,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (::updateManager.isInitialized) {
+            updateManager.resumePendingInstall()
+        }
         if (isPageReady && hasAudioPermission() && !hasScannedThisSession) {
             scanLocalAudioAndNotify(isManual = false)
         }
@@ -535,6 +560,73 @@ class MainActivity : ComponentActivity() {
         evalJs("window.__agOnTrackDeleted?.($quotedId, $success, $quotedErr);")
     }
 
+    fun findInstalledIdmPackage(): String? {
+        val candidates = listOf(
+            "idm.internet.download.manager.plus",
+            "idm.internet.download.manager",
+            "idm.internet.download.manager.adm.like"
+        )
+        for (pkg in candidates) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    packageManager.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(0L))
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageManager.getPackageInfo(pkg, 0)
+                }
+                return pkg
+            } catch (_: Exception) {}
+        }
+        return null
+    }
+
+    fun launchUpdateInIdm(apkUrl: String, apkName: String): Boolean {
+        val pkg = findInstalledIdmPackage() ?: return false
+        val parsedUri = Uri.parse(apkUrl)
+        val intents = listOf(
+            Intent(Intent.ACTION_VIEW, parsedUri).apply {
+                setPackage(pkg)
+                putExtra("extra_filename", apkName)
+                putExtra("android.intent.extra.TITLE", apkName)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+            Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(parsedUri, "application/vnd.android.package-archive")
+                setPackage(pkg)
+                putExtra("extra_filename", apkName)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+            Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, apkUrl)
+                putExtra(Intent.EXTRA_SUBJECT, apkName)
+                setPackage(pkg)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+        for (intent in intents) {
+            try {
+                if (intent.resolveActivity(packageManager) != null) {
+                    startActivity(intent)
+                    return true
+                }
+            } catch (_: Exception) {}
+        }
+        return false
+    }
+
+    fun openUpdateUrlInChooser(apkUrl: String) {
+        try {
+            val viewIntent = Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val chooser = Intent.createChooser(viewIntent, "Download APK with").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(chooser)
+        } catch (_: Exception) {}
+    }
+
     override fun onDestroy() {
         progressJob?.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }
@@ -562,6 +654,48 @@ class WebAppInterface(private val activity: MainActivity, private val updateMana
     @JavascriptInterface
     fun getVersionName(): String {
         return BuildConfig.VERSION_NAME
+    }
+
+    @JavascriptInterface
+    fun getVersionCode(): Int {
+        return BuildConfig.VERSION_CODE
+    }
+
+    @JavascriptInterface
+    fun hasIdmInstalled(): Boolean {
+        return activity.findInstalledIdmPackage() != null
+    }
+
+    @JavascriptInterface
+    fun launchUpdateInIdm(apkUrl: String, apkName: String): Boolean {
+        return activity.launchUpdateInIdm(apkUrl, apkName)
+    }
+
+    @JavascriptInterface
+    fun openUpdateUrlInChooser(apkUrl: String) {
+        activity.runOnUiThread {
+            activity.openUpdateUrlInChooser(apkUrl)
+        }
+    }
+
+    @JavascriptInterface
+    fun startInAppApkDownload(apkUrl: String, apkName: String, tagName: String, apkSizeBytes: Long) {
+        val release = GitHubRelease(
+            tagName = tagName,
+            versionName = tagName.removePrefix("V-").removePrefix("v"),
+            releaseNotes = "",
+            apkAssetName = apkName,
+            apkDownloadUrl = apkUrl,
+            apkSizeBytes = apkSizeBytes
+        )
+        activity.lifecycleScope.launch {
+            updateManager.downloadAndInstall(release)
+        }
+    }
+
+    @JavascriptInterface
+    fun installDownloadedApk(): Boolean {
+        return updateManager.retryInstallLastApk()
     }
 
     @JavascriptInterface

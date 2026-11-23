@@ -93,8 +93,15 @@ export interface GitHubReleaseInfo {
 export type UpdateFlowState =
   | { status: 'idle' }
   | { status: 'checking' }
-  | { status: 'up_to_date'; currentVersion: string; note?: string }
-  | { status: 'available'; release: GitHubReleaseInfo }
-  | { status: 'downloading'; release: GitHubReleaseInfo; progress: number; downloadedBytes: number; totalBytes: number }
-  | { status: 'ready_to_install'; release: GitHubReleaseInfo; blobUrl?: string }
+  | { status: 'up_to_date'; currentVersion: string }
+  | { status: 'available'; release: GitHubReleaseInfo; currentVersionTag: string }
+  | {
+      status: 'downloading';
+      release: GitHubReleaseInfo;
+      currentVersionTag: string;
+      progress: number;
+      downloadedBytes: number;
+      totalBytes: number;
+    }
+  | { status: 'ready_to_install'; release: GitHubReleaseInfo; currentVersionTag: string }
   | { status: 'error'; message: string };

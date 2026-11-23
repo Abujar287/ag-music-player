@@ -86,14 +86,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Cache Fallback Release Keystore
+        uses: actions/cache@v4
+        with:
+          path: android/app/release-keystore.jks
+          key: ag-music-release-keystore-v1
+
       - name: Decode Release Keystore
         id: keystore
         run: |
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-keystore.jks
             echo "has_keystore=true" >> "$GITHUB_OUTPUT"
+          elif [ -f android/app/release-keystore.jks ]; then
+            echo "Restored consistent release keystore from cache."
+            echo "has_keystore=false" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::KEYSTORE_BASE64 secret not found. Generating temporary keystore for build verification."
+            echo "::warning::KEYSTORE_BASE64 secret not found. Generating persistent release keystore for future updates."
             keytool -genkeypair -v \
               -keystore android/app/release-keystore.jks \
               -storepass "${{ secrets.KEYSTORE_PASSWORD || 'agmusicplayer' }}" \
@@ -138,8 +147,8 @@ jobs:
           name: ${{ steps.version.outputs.apk_name }}
           path: release-output/${{ steps.version.outputs.apk_name }}
 
-      - name: Clean Up Keystore
-        if: always()
+      - name: Clean Up Secret Keystore
+        if: always() && steps.keystore.outputs.has_keystore == 'true'
         run: rm -f android/app/release-keystore.jks
 
       - name: Create Git Tag & Publish GitHub Release

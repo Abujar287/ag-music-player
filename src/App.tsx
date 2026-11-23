@@ -37,6 +37,7 @@ import {
   PlaylistModal,
   SleepTimerModal,
   UpdateModal,
+  DeleteConfirmModal,
 } from './components/Modals';
 import { NowPlayingModal } from './components/NowPlayingModal';
 import { SideDrawer } from './components/SideDrawer';
@@ -44,7 +45,6 @@ import { CoverImage } from './components/CoverImage';
 import {
   ACCENT_OPTIONS,
   APP_VERSION,
-  APP_VERSION_TAG,
   DEFAULT_EQUALIZER,
   DEFAULT_PLAYLISTS,
   DEFAULT_SETTINGS,
@@ -169,15 +169,16 @@ export default function App() {
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<Track | null>(null);
   const [sleepTimerOpen, setSleepTimerOpen] = useState(false);
   const [updateState, setUpdateState] = useState<UpdateFlowState>({ status: 'idle' });
+  const [pendingDeleteTrack, setPendingDeleteTrack] = useState<Track | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const downloadTimerRef = useRef<number | null>(null);
   const pullStartYRef = useRef<number | null>(null);
   const refreshTimerRef = useRef<number | null>(null);
   const tracksRef = useRef<Track[]>(tracks);
   const currentTrackIdRef = useRef<string>(currentTrackId);
+  const activeUpdateReleaseRef = useRef<{ release: GitHubReleaseInfo; currentVersionTag: string } | null>(null);
 
   useEffect(() => {
     tracksRef.current = tracks;
@@ -270,6 +271,11 @@ export default function App() {
     const win = window as unknown as {
       __agOnDeviceTracks?: (incoming: Track[], isManual?: boolean) => void;
       __agOnTrackDeleted?: (trackId: string, success: boolean, errorMsg?: string | null) => void;
+      __agUpdateCallbacks?: {
+        onProgress?: (percent: number, downloadedBytes: number, totalBytes: number) => void;
+        onReady?: () => void;
+        onError?: (msg: string) => void;
+      };
     };
     win.__agOnDeviceTracks = (incoming: Track[], isManual = false) => {
       if (refreshTimerRef.current) {
@@ -301,6 +307,32 @@ export default function App() {
           : 'Audio file deleted from device'
       );
     };
+    win.__agUpdateCallbacks = {
+      onProgress: (percent: number, downloadedBytes: number, totalBytes: number) => {
+        const ctx = activeUpdateReleaseRef.current;
+        if (!ctx) return;
+        setUpdateState({
+          status: 'downloading',
+          release: ctx.release,
+          currentVersionTag: ctx.currentVersionTag,
+          progress: percent,
+          downloadedBytes,
+          totalBytes: totalBytes > 0 ? totalBytes : ctx.release.apkSizeBytes,
+        });
+      },
+      onReady: () => {
+        const ctx = activeUpdateReleaseRef.current;
+        if (!ctx) return;
+        setUpdateState({
+          status: 'ready_to_install',
+          release: ctx.release,
+          currentVersionTag: ctx.currentVersionTag,
+        });
+      },
+      onError: (msg: string) => {
+        setUpdateState({ status: 'error', message: msg });
+      },
+    };
 
     scanDeviceStorage(false);
     return () => {
@@ -309,6 +341,7 @@ export default function App() {
       }
       delete win.__agOnDeviceTracks;
       delete win.__agOnTrackDeleted;
+      delete win.__agUpdateCallbacks;
     };
   }, [applyScannedTracks, scanDeviceStorage, showToast]);
 
@@ -708,6 +741,11 @@ export default function App() {
   };
 
   const handleDeleteTrack = (track: Track) => {
+    setPendingDeleteTrack(track);
+  };
+
+  const executeDeleteTrack = (track: Track) => {
+    setPendingDeleteTrack(null);
     const bridge = (window as unknown as {
       AndroidBridge?: {
         deleteDeviceTrack?: (trackId: string, contentUri: string, filePath: string) => void;
@@ -732,7 +770,7 @@ export default function App() {
     setPlaylists((prev) =>
       prev.map((pl) => ({ ...pl, trackIds: pl.trackIds.filter((id) => id !== track.id) }))
     );
-    showToast(`Removed "${track.title}" from library`);
+    showToast(`Deleted "${track.title}" from library`);
   };
 
   const handleShareTrack = async (track: Track) => {
@@ -820,123 +858,169 @@ export default function App() {
     showToast(`Deleted playlist "${pl.name}"`);
   };
 
+  const getInstalledVersionInfo = useCallback(() => {
+    const bridge = (window as unknown as {
+      AndroidBridge?: {
+        getVersionName?: () => string;
+        getVersionCode?: () => number;
+      };
+    }).AndroidBridge;
+
+    const rawVersionName =
+      bridge && typeof bridge.getVersionName === 'function'
+        ? bridge.getVersionName() || APP_VERSION
+        : APP_VERSION;
+    const cleanVersion = rawVersionName.replace(/^[Vv]-?/, '').trim() || APP_VERSION;
+    const versionCode =
+      bridge && typeof bridge.getVersionCode === 'function'
+        ? bridge.getVersionCode()
+        : undefined;
+
+    return {
+      versionName: cleanVersion,
+      versionTag: `v${cleanVersion}`,
+      versionCode,
+    };
+  }, []);
+
   // GitHub In-App Auto-Updater
   const handleCheckUpdate = async () => {
     setUpdateState({ status: 'checking' });
+    const installed = getInstalledVersionInfo();
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+
     try {
       const res = await fetch(GITHUB_LATEST_API, {
         headers: { Accept: 'application/vnd.github+json' },
+        signal: controller.signal,
       });
 
       if (res.status === 404) {
         setUpdateState({
           status: 'up_to_date',
-          currentVersion: APP_VERSION_TAG,
-          note: 'No published GitHub releases were found yet on Abujar287/ag-music-player. Push to main to trigger the automated APK build workflow.',
+          currentVersion: installed.versionTag,
         });
         return;
       }
 
       if (!res.ok) {
-        throw new Error(`GitHub API returned HTTP ${res.status}`);
+        throw new Error(`Unable to check updates (HTTP ${res.status}).`);
       }
 
       const json = await res.json();
-      const tagName: string = json.tag_name || APP_VERSION_TAG;
+      const tagName: string = json.tag_name || installed.versionTag;
       const assets: Array<{ name: string; browser_download_url: string; size: number }> =
         Array.isArray(json.assets) ? json.assets : [];
       const apkAsset = assets.find((a) => a.name.toLowerCase().endsWith('.apk')) ?? assets[0];
 
-      if (isRemoteVersionNewer(tagName, APP_VERSION) && apkAsset) {
+      if (isRemoteVersionNewer(tagName, installed.versionName, installed.versionCode)) {
+        if (!apkAsset || !apkAsset.browser_download_url) {
+          throw new Error('New version found, but APK file is not ready yet.');
+        }
         const release: GitHubReleaseInfo = {
           tagName,
-          version: tagName.replace(/^[Vv]-?/, ''),
+          version: tagName.replace(/^[Vv]-?/, '').trim(),
           name: json.name || `AG Music Player ${tagName}`,
-          body: json.body || 'Bug fixes and playback improvements.',
+          body: json.body || '',
           apkName: apkAsset.name,
           apkUrl: apkAsset.browser_download_url,
-          apkSizeBytes: apkAsset.size || 14_200_000,
+          apkSizeBytes: apkAsset.size || 0,
           publishedAt: json.published_at || new Date().toISOString(),
         };
-        setUpdateState({ status: 'available', release });
+        activeUpdateReleaseRef.current = {
+          release,
+          currentVersionTag: installed.versionTag,
+        };
+        setUpdateState({
+          status: 'available',
+          release,
+          currentVersionTag: installed.versionTag,
+        });
       } else {
         setUpdateState({
           status: 'up_to_date',
-          currentVersion: APP_VERSION_TAG,
-          note: `Remote latest tag (${tagName}) is already installed.`,
+          currentVersion: installed.versionTag,
         });
       }
     } catch (err) {
+      const isAbort = err instanceof Error && err.name === 'AbortError';
       setUpdateState({
         status: 'error',
-        message: err instanceof Error ? err.message : 'Unable to reach GitHub Releases API.',
+        message: isAbort
+          ? 'Connection timed out. Please check your internet connection.'
+          : err instanceof Error
+            ? err.message
+            : 'Unable to check for updates right now.',
       });
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   };
 
-  const handleSimulateUpdate = () => {
-    setUpdateState({
-      status: 'available',
-      release: {
-        tagName: 'V-1.0.2',
-        version: '1.0.2',
-        name: 'AG Music Player V-1.0.2',
-        body: '• Enhanced 5-band Equalizer headroom\n• Faster MediaStore folder auto-sync\n• Improved DownloadManager progress polling & FileProvider handoff',
-        apkName: 'AG Music Player V-1.0.2.apk',
-        apkUrl:
-          'https://github.com/Abujar287/ag-music-player/releases/download/V-1.0.2/AG%20Music%20Player%20V-1.0.2.apk',
-        apkSizeBytes: 15_420_000,
-        publishedAt: new Date().toISOString(),
-        isSimulated: true,
-      },
-    });
-  };
-
-  const handleStartDownload = async () => {
+  const handleStartDownload = () => {
     if (updateState.status !== 'available') return;
-    const release = updateState.release;
+    const { release, currentVersionTag } = updateState;
+    activeUpdateReleaseRef.current = { release, currentVersionTag };
 
-    if (downloadTimerRef.current) clearInterval(downloadTimerRef.current);
+    const bridge = (window as unknown as {
+      AndroidBridge?: {
+        startInAppApkDownload?: (
+          apkUrl: string,
+          apkName: string,
+          tagName: string,
+          apkSizeBytes: number
+        ) => void;
+      };
+    }).AndroidBridge;
 
-    let progress = 0;
-    setUpdateState({
-      status: 'downloading',
-      release,
-      progress: 0,
-      downloadedBytes: 0,
-      totalBytes: release.apkSizeBytes,
-    });
-
-    if (!release.isSimulated && release.apkUrl) {
-      const link = document.createElement('a');
-      link.href = release.apkUrl;
-      link.download = release.apkName;
-      link.rel = 'noopener noreferrer';
-      link.click();
+    if (bridge && typeof bridge.startInAppApkDownload === 'function') {
+      setUpdateState({
+        status: 'downloading',
+        release,
+        currentVersionTag,
+        progress: 0,
+        downloadedBytes: 0,
+        totalBytes: release.apkSizeBytes,
+      });
+      bridge.startInAppApkDownload(
+        release.apkUrl,
+        release.apkName,
+        release.tagName,
+        release.apkSizeBytes
+      );
+      return;
     }
 
-    downloadTimerRef.current = window.setInterval(() => {
-      progress = Math.min(100, progress + 8);
-      if (progress >= 100) {
-        if (downloadTimerRef.current) clearInterval(downloadTimerRef.current);
-        setUpdateState({ status: 'ready_to_install', release });
-      } else {
-        setUpdateState({
-          status: 'downloading',
-          release,
-          progress,
-          downloadedBytes: Math.round((release.apkSizeBytes * progress) / 100),
-          totalBytes: release.apkSizeBytes,
-        });
-      }
-    }, 180);
+    // Browser preview fallback
+    const link = document.createElement('a');
+    link.href = release.apkUrl;
+    link.download = release.apkName;
+    link.rel = 'noopener noreferrer';
+    link.click();
+    setUpdateState({ status: 'idle' });
+    showToast(`Downloading ${release.apkName}`);
   };
 
   const handleTriggerInstall = () => {
     if (updateState.status !== 'ready_to_install') return;
-    const { release } = updateState;
+    const bridge = (window as unknown as {
+      AndroidBridge?: {
+        installDownloadedApk?: () => boolean;
+      };
+    }).AndroidBridge;
+
+    if (bridge && typeof bridge.installDownloadedApk === 'function') {
+      const ok = bridge.installDownloadedApk();
+      if (!ok) {
+        setUpdateState({
+          status: 'error',
+          message: 'Unable to locate the downloaded APK file.',
+        });
+        return;
+      }
+    }
     setUpdateState({ status: 'idle' });
-    showToast(`Launching Android Package Installer for ${release.apkName}`);
   };
 
   // Queue reordering
@@ -1195,6 +1279,7 @@ export default function App() {
             nowPlayingOpen ||
             Boolean(editTagTrack) ||
             Boolean(addToPlaylistTrack) ||
+            Boolean(pendingDeleteTrack) ||
             sleepTimerOpen ||
             playlistModal.open ||
             updateState.status !== 'idle';
@@ -2006,13 +2091,15 @@ export default function App() {
 
       <UpdateModal
         state={updateState}
-        onClose={() => {
-          if (downloadTimerRef.current) clearInterval(downloadTimerRef.current);
-          setUpdateState({ status: 'idle' });
-        }}
-        onStartDownload={() => void handleStartDownload()}
-        onSimulateUpdate={handleSimulateUpdate}
+        onClose={() => setUpdateState({ status: 'idle' })}
+        onDownload={handleStartDownload}
         onTriggerInstall={handleTriggerInstall}
+      />
+
+      <DeleteConfirmModal
+        track={pendingDeleteTrack}
+        onCancel={() => setPendingDeleteTrack(null)}
+        onConfirmDelete={executeDeleteTrack}
       />
 
       {/* Toast Feedback */}
