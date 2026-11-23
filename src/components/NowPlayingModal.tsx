@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { RepeatMode, SleepTimerState, Track } from '../types/music';
 import { formatTime } from '../utils/formatters';
+import { CoverImage } from './CoverImage';
 
 interface NowPlayingModalProps {
   open: boolean;
@@ -130,16 +131,12 @@ export const NowPlayingModal: React.FC<NowPlayingModalProps> = ({
         <div className="relative flex items-center justify-center my-2 w-full">
           {track.mediaType === 'video' ? (
             <div className="w-full max-w-md aspect-video rounded-2xl overflow-hidden border border-[var(--accent)]/40 bg-[#141417] shadow-2xl relative flex items-center justify-center">
-              {track.coverUrl ? (
-                <img
-                  src={track.coverUrl}
-                  alt={track.title}
-                  referrerPolicy="no-referrer"
-                  className={`w-full h-full object-cover transition-transform duration-700 ${isPlaying ? 'scale-105' : 'scale-100'}`}
-                />
-              ) : (
-                <Disc3 className="w-16 h-16 text-[var(--accent)] opacity-80" />
-              )}
+              <CoverImage
+                src={track.coverUrl}
+                alt={track.title}
+                className={`w-full h-full object-cover transition-transform duration-700 ${isPlaying ? 'scale-105' : 'scale-100'}`}
+                fallback={<Disc3 className="w-16 h-16 text-[var(--accent)] opacity-80" />}
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/30 pointer-events-none" />
               <span className="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-black/70 text-[11px] font-semibold text-[var(--accent)]">
                 {isPlaying ? 'Playing Video' : 'Video Paused'}
@@ -147,24 +144,16 @@ export const NowPlayingModal: React.FC<NowPlayingModalProps> = ({
             </div>
           ) : (
             <div className="w-56 h-56 sm:w-72 sm:h-72 rounded-full p-2 border-2 border-[var(--accent)]/40 shadow-2xl bg-[#141417] flex items-center justify-center">
-              {track.coverUrl ? (
-                <div className={`relative w-full h-full rounded-full overflow-hidden ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}>
-                  <img
-                    src={track.coverUrl}
-                    alt={track.album}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
-                  />
-                  {/* Center Vinyl Spindle */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-10 h-10 rounded-full bg-[#0B0B0D]/90 border-2 border-[var(--accent)]/70" />
+              <CoverImage
+                src={track.coverUrl}
+                alt={track.album}
+                className={`w-full h-full rounded-full object-cover ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}
+                fallback={
+                  <div className={`w-full h-full rounded-full bg-[#1C1C21] flex flex-col items-center justify-center ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}>
+                    <Disc3 className="w-24 h-24 text-[var(--accent)] opacity-80" />
                   </div>
-                </div>
-              ) : (
-                <div className={`w-full h-full rounded-full bg-[#1C1C21] flex flex-col items-center justify-center ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}>
-                  <Disc3 className="w-24 h-24 text-[var(--accent)] opacity-80" />
-                </div>
-              )}
+                }
+              />
             </div>
           )}
         </div>

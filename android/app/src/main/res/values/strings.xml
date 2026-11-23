@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Music Player</string>
+    <string name="app_name">AG Music Player</string>
     <string name="display_title">AG Music Player</string>
     <string name="github_repo">Abujar287/ag-music-player</string>
 </resources>

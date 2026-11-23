@@ -26,6 +26,7 @@ import {
   LOGO_IMAGE_URL,
 } from '../data/defaultLibrary';
 import { AppSettings, EqualizerState, EqPresetId, Track } from '../types/music';
+import { CoverImage } from './CoverImage';
 
 type DrawerSection = 'menu' | 'theme' | 'equalizer' | 'widget' | 'settings';
 
@@ -42,6 +43,7 @@ interface SideDrawerProps {
   onTogglePlay: () => void;
   onNext: () => void;
   onPrev: () => void;
+  onRescanLibrary?: () => void;
 }
 
 const MENU_LIST: Array<{
@@ -89,8 +91,19 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
   onTogglePlay,
   onNext,
   onPrev,
+  onRescanLibrary,
 }) => {
   const [activeSection, setActiveSection] = useState<DrawerSection>('menu');
+
+  const dynamicVersion = React.useMemo(() => {
+    try {
+      const bridge = (window as any).AndroidBridge;
+      if (bridge && typeof bridge.getVersionName === 'function') {
+        return `V-${bridge.getVersionName()}`;
+      }
+    } catch {}
+    return APP_VERSION_TAG;
+  }, []);
 
   if (!open) return null;
 
@@ -147,7 +160,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                 AG Music Player
               </h2>
               <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
-                Music Player · {APP_VERSION_TAG}
+                Music Player · {dynamicVersion}
               </p>
             </div>
           </div>
@@ -382,18 +395,16 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                   4 × 1 Compact Bar Widget
                 </span>
                 <div className="p-3 rounded-2xl bg-[#16161A] text-[#F5F3EE] border border-white/10 flex items-center gap-3 shadow-lg">
-                  {currentTrack?.coverUrl ? (
-                    <img
-                      src={currentTrack.coverUrl}
-                      alt={currentTrack.title}
-                      referrerPolicy="no-referrer"
-                      className="w-11 h-11 rounded-xl object-cover shrink-0"
-                    />
-                  ) : (
-                    <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-                      <Disc3 className="w-5 h-5 text-[var(--accent)]" />
-                    </div>
-                  )}
+                  <CoverImage
+                    src={currentTrack?.coverUrl}
+                    alt={currentTrack?.title ?? 'Album art'}
+                    className="w-11 h-11 rounded-xl object-cover shrink-0"
+                    fallback={
+                      <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                        <Disc3 className="w-5 h-5 text-[var(--accent)]" />
+                      </div>
+                    }
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold truncate">
                       {currentTrack?.title ?? 'Obsidian Echoes'}
@@ -435,18 +446,16 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                 </span>
                 <div className="p-4 rounded-2xl bg-[#16161A] text-[#F5F3EE] border border-white/10 space-y-3 shadow-lg">
                   <div className="flex items-center gap-3.5">
-                    {currentTrack?.coverUrl ? (
-                      <img
-                        src={currentTrack.coverUrl}
-                        alt={currentTrack.title}
-                        referrerPolicy="no-referrer"
-                        className="w-16 h-16 rounded-xl object-cover shrink-0"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-                        <Disc3 className="w-7 h-7 text-[var(--accent)]" />
-                      </div>
-                    )}
+                    <CoverImage
+                      src={currentTrack?.coverUrl}
+                      alt={currentTrack?.title ?? 'Album art'}
+                      className="w-16 h-16 rounded-xl object-cover shrink-0"
+                      fallback={
+                        <div className="w-16 h-16 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                          <Disc3 className="w-7 h-7 text-[var(--accent)]" />
+                        </div>
+                      }
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate">
                         {currentTrack?.title ?? 'Obsidian Echoes'}
@@ -528,6 +537,16 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                     className="w-4 h-4 accent-[var(--accent)]"
                   />
                 </label>
+
+                {onRescanLibrary && (
+                  <button
+                    onClick={onRescanLibrary}
+                    className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-black/10 dark:border-white/10 hover:border-[var(--accent)]/60 flex items-center justify-between text-sm font-medium transition-colors"
+                  >
+                    <span>Refresh / Rescan Device Audio</span>
+                    <RefreshCw className="w-4 h-4 text-[var(--accent)]" />
+                  </button>
+                )}
               </div>
 
               {/* Audio & Playback */}
@@ -643,7 +662,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
               <span>Check Update</span>
             </div>
             <div className="flex items-center gap-1 font-mono-tabular text-xs opacity-90">
-              <span>{APP_VERSION_TAG}</span>
+              <span>{dynamicVersion}</span>
               <ChevronRight className="w-4 h-4" />
             </div>
           </button>

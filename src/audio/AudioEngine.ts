@@ -1,6 +1,33 @@
-import { EqualizerState, SynthProfile, Track } from '../types/music';
+import { EqualizerState, Track } from '../types/music';
 
 const BAND_FREQS = [60, 230, 910, 3600, 14000];
+
+interface AndroidAudioBridge {
+  playTrack?: (
+    uri: string,
+    title: string,
+    artist: string,
+    album: string,
+    artUri: string,
+    startSec: number
+  ) => void;
+  pauseTrack?: () => void;
+  resumeTrack?: () => void;
+  seekTo?: (sec: number) => void;
+  updateEqualizer?: (enabled: boolean, bandsJson: string, virtualizer: number) => void;
+}
+
+declare global {
+  interface Window {
+    AndroidBridge?: AndroidAudioBridge & Record<string, unknown>;
+    __agNativeCallbacks?: {
+      onProgress?: (posSec: number) => void;
+      onStateChange?: (isPlaying: boolean, posSec?: number) => void;
+      onEnded?: () => void;
+      onError?: (msg: string) => void;
+    };
+  }
+}
 
 export class AGMusicAudioEngine {
   private ctx: AudioContext | null = null;
@@ -13,8 +40,6 @@ export class AGMusicAudioEngine {
   private mediaElement: HTMLAudioElement | null = null;
   private mediaSourceNode: MediaElementAudioSourceNode | null = null;
 
-  private synthInterval: number | null = null;
-  private synthActiveNodes: AudioNode[] = [];
   private currentTrack: Track | null = null;
   private isPlaying = false;
   private positionSec = 0;
@@ -29,19 +54,95 @@ export class AGMusicAudioEngine {
 
   private onTickCallback: ((posSec: number) => void) | null = null;
   private onEndedCallback: (() => void) | null = null;
+  private onStateChangeCallback: ((playing: boolean) => void) | null = null;
+  private onErrorCallback: ((message: string) => void) | null = null;
 
-  public setCallbacks(onTick: (posSec: number) => void, onEnded: () => void) {
+  constructor() {
+    if (typeof window !== 'undefined') {
+      window.__agNativeCallbacks = {
+        onProgress: (posSec: number) => {
+          this.positionSec = posSec;
+          this.onTickCallback?.(posSec);
+        },
+        onStateChange: (playing: boolean, posSec?: number) => {
+          this.isPlaying = playing;
+          if (typeof posSec === 'number' && !Number.isNaN(posSec)) {
+            this.positionSec = posSec;
+            this.onTickCallback?.(posSec);
+          }
+          this.onStateChangeCallback?.(playing);
+        },
+        onEnded: () => {
+          this.isPlaying = false;
+          this.positionSec = 0;
+          this.onEndedCallback?.();
+        },
+        onError: (msg: string) => {
+          this.isPlaying = false;
+          this.onStateChangeCallback?.(false);
+          this.onErrorCallback?.(msg);
+        },
+      };
+    }
+  }
+
+  private hasNativeBridge(): boolean {
+    return typeof window !== 'undefined' && typeof window.AndroidBridge?.playTrack === 'function';
+  }
+
+  public setCallbacks(
+    onTick: (posSec: number) => void,
+    onEnded: () => void,
+    onStateChange?: (playing: boolean) => void,
+    onError?: (message: string) => void
+  ) {
     this.onTickCallback = onTick;
     this.onEndedCallback = onEnded;
+    this.onStateChangeCallback = onStateChange ?? null;
+    this.onErrorCallback = onError ?? null;
   }
 
   public setFadeOnPause(enabled: boolean) {
     this.fadeOnPause = enabled;
   }
 
-  private ensureGraph() {
+  public isTrackLoaded(trackId: string): boolean {
+    return this.currentTrack?.id === trackId;
+  }
+
+  private ensureWebMediaElement() {
+    if (this.mediaElement) return;
+    this.mediaElement = new Audio();
+    this.mediaElement.preload = 'auto';
+    this.mediaElement.addEventListener('ended', () => {
+      this.stopProgressTimer();
+      this.isPlaying = false;
+      this.onEndedCallback?.();
+    });
+    this.mediaElement.addEventListener('pause', () => {
+      if (this.isPlaying && this.mediaElement?.ended === false) {
+        this.isPlaying = false;
+        this.stopProgressTimer();
+        this.onStateChangeCallback?.(false);
+      }
+    });
+    this.mediaElement.addEventListener('play', () => {
+      if (!this.isPlaying) {
+        this.isPlaying = true;
+        this.onStateChangeCallback?.(true);
+      }
+    });
+  }
+
+  private ensureWebAudioGraph() {
+    this.ensureWebMediaElement();
     if (this.ctx) return;
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+
     this.ctx = new AudioCtx();
 
     this.masterGain = this.ctx.createGain();
@@ -87,20 +188,31 @@ export class AGMusicAudioEngine {
 
     this.masterGain.connect(this.ctx.destination);
 
-    // MediaElement for imported local audio files
-    this.mediaElement = new Audio();
-    this.mediaElement.crossOrigin = 'anonymous';
-    this.mediaElement.addEventListener('ended', () => {
-      this.stopTimers();
-      this.isPlaying = false;
-      this.onEndedCallback?.();
-    });
-    this.mediaSourceNode = this.ctx.createMediaElementSource(this.mediaElement);
-    this.mediaSourceNode.connect(this.filters[0]);
+    if (this.mediaElement && !this.mediaSourceNode) {
+      try {
+        this.mediaSourceNode = this.ctx.createMediaElementSource(this.mediaElement);
+        this.mediaSourceNode.connect(this.filters[0]);
+      } catch (err) {
+        console.warn('Web Audio EQ source attach skipped:', err);
+      }
+    }
   }
 
   public updateEqualizer(eq: EqualizerState) {
     this.eqState = eq;
+    if (this.hasNativeBridge()) {
+      try {
+        window.AndroidBridge?.updateEqualizer?.(
+          eq.enabled,
+          JSON.stringify(eq.bands),
+          eq.virtualizer
+        );
+      } catch (err) {
+        console.error('Native EQ update error:', err);
+      }
+      return;
+    }
+
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
     this.filters.forEach((f, idx) => {
@@ -114,184 +226,145 @@ export class AGMusicAudioEngine {
   }
 
   public async playTrack(track: Track, startSec = 0) {
-    this.ensureGraph();
-    if (this.ctx!.state === 'suspended') {
-      await this.ctx!.resume();
-    }
-
-    this.stopCurrentSource();
     this.currentTrack = track;
     this.positionSec = startSec;
+
+    // 1. Native Android Media3 ExoPlayer path (clean hardware decoding + audio focus)
+    if (this.hasNativeBridge()) {
+      const nativeUri = track.contentUri || track.filePath || track.audioUrl || '';
+      if (!nativeUri) {
+        this.isPlaying = false;
+        this.onStateChangeCallback?.(false);
+        this.onErrorCallback?.('No playable audio URI found for this track.');
+        return;
+      }
+      this.isPlaying = true;
+      window.AndroidBridge!.playTrack!(
+        nativeUri,
+        track.title,
+        track.artist,
+        track.album,
+        track.nativeArtUri || '',
+        startSec
+      );
+      this.updateEqualizer(this.eqState);
+      return;
+    }
+
+    // 2. Web Browser path
+    const sourceUri = track.audioUrl || track.contentUri || track.filePath;
+    if (!sourceUri) {
+      this.isPlaying = false;
+      this.onStateChangeCallback?.(false);
+      this.onErrorCallback?.('Audio file source is unavailable in web preview.');
+      return;
+    }
+
+    this.ensureWebAudioGraph();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      await this.ctx.resume().catch(() => {});
+    }
+
+    this.stopWebPlayback();
     this.isPlaying = true;
 
-    const now = this.ctx!.currentTime;
-    if (this.masterGain) {
+    if (this.ctx && this.masterGain) {
+      const now = this.ctx.currentTime;
       this.masterGain.gain.cancelScheduledValues(now);
       if (this.fadeOnPause) {
         this.masterGain.gain.setValueAtTime(0.01, now);
-        this.masterGain.gain.linearRampToValueAtTime(0.85, now + 0.25);
+        this.masterGain.gain.linearRampToValueAtTime(0.85, now + 0.2);
       } else {
         this.masterGain.gain.setValueAtTime(0.85, now);
       }
     }
 
-    if (track.audioUrl && this.mediaElement) {
-      this.mediaElement.src = track.audioUrl;
+    if (this.mediaElement) {
+      // Only set crossOrigin for remote HTTP/HTTPS streams; never for blob:/file: URLs
+      if (sourceUri.startsWith('http://') || sourceUri.startsWith('https://')) {
+        this.mediaElement.crossOrigin = 'anonymous';
+      } else {
+        this.mediaElement.removeAttribute('crossorigin');
+      }
+      this.mediaElement.src = sourceUri;
       this.mediaElement.currentTime = startSec;
-      await this.mediaElement.play().catch(() => {});
-      this.startProgressLoop(true);
-    } else {
-      this.startSynthPlayback(track.synthProfile || {
-        bpm: 86,
-        rootHz: 110,
-        chords: [[220, 261.63, 329.63]],
-        waveform: 'sine',
-        brightnessHz: 1400,
-      });
-      this.startProgressLoop(false);
+      try {
+        await this.mediaElement.play();
+        this.startProgressLoop();
+      } catch (err) {
+        console.error('Audio playback error:', err);
+        this.isPlaying = false;
+        this.onStateChangeCallback?.(false);
+        this.onErrorCallback?.('Unable to decode or play this audio file.');
+      }
     }
   }
 
   public pause() {
-    if (!this.isPlaying) return;
     this.isPlaying = false;
-    this.stopTimers();
+    this.stopProgressTimer();
+
+    if (this.hasNativeBridge()) {
+      window.AndroidBridge?.pauseTrack?.();
+      return;
+    }
 
     if (this.ctx && this.masterGain && this.fadeOnPause) {
       const now = this.ctx.currentTime;
       this.masterGain.gain.cancelScheduledValues(now);
       this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
-      this.masterGain.gain.linearRampToValueAtTime(0.001, now + 0.18);
+      this.masterGain.gain.linearRampToValueAtTime(0.001, now + 0.16);
       window.setTimeout(() => {
         if (!this.isPlaying) {
           this.mediaElement?.pause();
-          this.stopSynthNodes();
         }
-      }, 190);
+      }, 175);
     } else {
       this.mediaElement?.pause();
-      this.stopSynthNodes();
     }
   }
 
   public async resume() {
     if (!this.currentTrack) return;
+    if (this.hasNativeBridge()) {
+      this.isPlaying = true;
+      window.AndroidBridge?.resumeTrack?.();
+      return;
+    }
     await this.playTrack(this.currentTrack, this.positionSec);
   }
 
   public seekTo(sec: number) {
     if (!this.currentTrack) return;
-    const clamped = Math.max(0, Math.min(sec, this.currentTrack.durationSec));
+    const clamped = Math.max(0, Math.min(sec, Math.max(1, this.currentTrack.durationSec)));
     this.positionSec = clamped;
-    if (this.currentTrack.audioUrl && this.mediaElement) {
+
+    if (this.hasNativeBridge()) {
+      window.AndroidBridge?.seekTo?.(clamped);
+      this.onTickCallback?.(clamped);
+      return;
+    }
+
+    if (this.mediaElement && this.mediaElement.src) {
       this.mediaElement.currentTime = clamped;
     }
     this.onTickCallback?.(clamped);
   }
 
-  private startSynthPlayback(profile: SynthProfile) {
-    if (!this.ctx || this.filters.length === 0) return;
-
-    const beatMs = (60 / profile.bpm) * 1000 * 2; // chord changes every 2 beats
-    let step = Math.floor(this.positionSec / (beatMs / 1000));
-
-    const playStep = () => {
-      if (!this.ctx || !this.isPlaying) return;
-      const now = this.ctx.currentTime;
-      const chord = profile.chords[step % profile.chords.length];
-      const dur = beatMs / 1000;
-
-      // Sub-bass root pulse
-      const bassOsc = this.ctx.createOscillator();
-      const bassGain = this.ctx.createGain();
-      bassOsc.type = 'sine';
-      bassOsc.frequency.setValueAtTime(chord[0] / 2, now);
-      bassGain.gain.setValueAtTime(0.001, now);
-      bassGain.gain.linearRampToValueAtTime(0.18, now + 0.08);
-      bassGain.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.95);
-      bassOsc.connect(bassGain);
-      bassGain.connect(this.filters[0]);
-      bassOsc.start(now);
-      bassOsc.stop(now + dur);
-
-      // Warm polyphonic chord pad + gentle shimmer arpeggio
-      const lowpass = this.ctx.createBiquadFilter();
-      lowpass.type = 'lowpass';
-      lowpass.frequency.setValueAtTime(profile.brightnessHz, now);
-      lowpass.connect(this.filters[0]);
-
-      chord.forEach((freq, idx) => {
-        if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const g = this.ctx.createGain();
-        osc.type = profile.waveform;
-        osc.frequency.setValueAtTime(freq, now);
-        osc.detune.setValueAtTime((idx - 1.5) * 4, now);
-
-        const attackOffset = idx * 0.12;
-        g.gain.setValueAtTime(0.0001, now);
-        g.gain.linearRampToValueAtTime(0.055, now + 0.18 + attackOffset);
-        g.gain.exponentialRampToValueAtTime(0.0008, now + dur * 1.15);
-
-        osc.connect(g);
-        g.connect(lowpass);
-        osc.start(now + attackOffset * 0.4);
-        osc.stop(now + dur * 1.2);
-        this.synthActiveNodes.push(osc);
-      });
-
-      step++;
-    };
-
-    playStep();
-    this.synthInterval = window.setInterval(playStep, beatMs);
-  }
-
-  private startProgressLoop(useMediaElement: boolean) {
+  private startProgressLoop() {
     this.stopProgressTimer();
     this.progressTimer = window.setInterval(() => {
-      if (!this.isPlaying || !this.currentTrack) return;
-      if (useMediaElement && this.mediaElement) {
-        this.positionSec = this.mediaElement.currentTime;
-      } else {
-        this.positionSec += 0.25;
-        if (this.positionSec >= this.currentTrack.durationSec) {
-          this.positionSec = 0;
-          this.stopTimers();
-          this.isPlaying = false;
-          this.onTickCallback?.(0);
-          this.onEndedCallback?.();
-          return;
-        }
-      }
+      if (!this.isPlaying || !this.currentTrack || !this.mediaElement) return;
+      this.positionSec = this.mediaElement.currentTime;
       this.onTickCallback?.(this.positionSec);
     }, 250);
   }
 
-  private stopCurrentSource() {
-    this.stopTimers();
-    this.stopSynthNodes();
+  private stopWebPlayback() {
+    this.stopProgressTimer();
     if (this.mediaElement) {
       this.mediaElement.pause();
     }
-  }
-
-  private stopSynthNodes() {
-    if (this.synthInterval !== null) {
-      clearInterval(this.synthInterval);
-      this.synthInterval = null;
-    }
-    this.synthActiveNodes.forEach((node) => {
-      try {
-        if ('stop' in node && typeof (node as OscillatorNode).stop === 'function') {
-          (node as OscillatorNode).stop();
-        }
-        node.disconnect();
-      } catch {
-        // already stopped
-      }
-    });
-    this.synthActiveNodes = [];
   }
 
   private stopProgressTimer() {
@@ -301,16 +374,8 @@ export class AGMusicAudioEngine {
     }
   }
 
-  private stopTimers() {
-    if (this.synthInterval !== null) {
-      clearInterval(this.synthInterval);
-      this.synthInterval = null;
-    }
-    this.stopProgressTimer();
-  }
-
   public destroy() {
-    this.stopCurrentSource();
+    this.stopWebPlayback();
     this.ctx?.close();
     this.ctx = null;
   }

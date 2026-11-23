@@ -33,6 +33,9 @@ export interface Track {
   sizeKb: number;
   coverUrl: string | null;
   audioUrl?: string; // Object URL for imported local audio files
+  contentUri?: string;
+  filePath?: string;
+  nativeArtUri?: string;
   isLocalImport?: boolean;
   isFavorite: boolean;
   synthProfile?: SynthProfile;

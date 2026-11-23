@@ -5,7 +5,7 @@ export const APP_VERSION_TAG = `V-${APP_VERSION}`;
 export const GITHUB_REPO = 'Abujar287/ag-music-player';
 export const GITHUB_LATEST_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
-export const LOGO_IMAGE_URL = '/src/assets/images/ag_music_player_logo_1795412483987.jpg';
+export const LOGO_IMAGE_URL = './src/assets/images/ag_music_player_logo_1795412483987.jpg';
 
 export const ACCENT_OPTIONS: AccentOption[] = [
   {

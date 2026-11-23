@@ -39,6 +39,7 @@ import {
 } from './components/Modals';
 import { NowPlayingModal } from './components/NowPlayingModal';
 import { SideDrawer } from './components/SideDrawer';
+import { CoverImage } from './components/CoverImage';
 import {
   ACCENT_OPTIONS,
   APP_VERSION,
@@ -76,7 +77,7 @@ function loadInitialTracks(): Track[] {
     if (raw) {
       const parsed = JSON.parse(raw) as Track[];
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter((t) => !t.isLocalImport);
+        return parsed.filter((t) => !t.audioUrl?.startsWith('blob:'));
       }
     }
   } catch {
@@ -175,31 +176,98 @@ export default function App() {
     setToast(msg);
   }, []);
 
-  const scanDeviceStorage = useCallback(() => {
-    try {
-      const bridge = (window as any).AndroidBridge;
-      if (bridge && typeof bridge.getLocalAudioTracksJson === 'function') {
-        const jsonStr = bridge.getLocalAudioTracksJson();
-        const parsed = JSON.parse(jsonStr) as Track[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setTracks(parsed);
-          showToast(`Synced ${parsed.length} audio tracks from device storage`);
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const applyScannedTracks = useCallback(
+    (incoming: Track[], isManual = false) => {
+      if (!Array.isArray(incoming)) return;
+      setTracks((prev) => {
+        const favMap = new Map(prev.map((t) => [t.id, t.isFavorite]));
+        const merged = incoming.map((t) => ({
+          ...t,
+          isFavorite: favMap.get(t.id) ?? Boolean(t.isFavorite),
+        }));
+
+        const changed =
+          prev.length !== merged.length ||
+          prev.some(
+            (t, idx) =>
+              t.id !== merged[idx]?.id ||
+              t.contentUri !== merged[idx]?.contentUri ||
+              t.title !== merged[idx]?.title
+          );
+
+        if (!changed && prev.length > 0) {
+          return prev;
+        }
+        return merged;
+      });
+
+      setQueue((prevQueue) => (prevQueue.length === 0 ? incoming : prevQueue));
+      setCurrentTrackId((prevId) => prevId || incoming[0]?.id || '');
+
+      if (isManual) {
+        showToast(
+          incoming.length > 0
+            ? `Refreshed library (${incoming.length} audio files)`
+            : 'No audio files found on device'
+        );
+      }
+    },
+    [showToast]
+  );
+
+  const scanDeviceStorage = useCallback(
+    (isManual = false) => {
+      try {
+        const bridge = (window as unknown as {
+          AndroidBridge?: {
+            scanLocalAudioAsync?: (manual: boolean) => void;
+            requestPermissionAndScan?: () => void;
+            getLocalAudioTracksJson?: () => string;
+          };
+        }).AndroidBridge;
+
+        if (bridge && typeof bridge.scanLocalAudioAsync === 'function') {
+          bridge.scanLocalAudioAsync(isManual);
           return;
         }
+
+        if (bridge && typeof bridge.getLocalAudioTracksJson === 'function') {
+          const jsonStr = bridge.getLocalAudioTracksJson();
+          const parsed = JSON.parse(jsonStr) as Track[];
+          if (Array.isArray(parsed)) {
+            applyScannedTracks(parsed, isManual);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to scan device audio:', e);
       }
-    } catch (e) {
-      console.error("Failed to scan device audio:", e);
-    }
-  }, [showToast]);
+    },
+    [applyScannedTracks]
+  );
 
   useEffect(() => {
-    scanDeviceStorage();
-  }, [scanDeviceStorage]);
+    const win = window as unknown as {
+      __agOnDeviceTracks?: (incoming: Track[], isManual?: boolean) => void;
+    };
+    win.__agOnDeviceTracks = (incoming: Track[], isManual = false) => {
+      applyScannedTracks(incoming, isManual);
+    };
+    scanDeviceStorage(false);
+    return () => {
+      delete win.__agOnDeviceTracks;
+    };
+  }, [applyScannedTracks, scanDeviceStorage]);
 
-  // Persist state
+  // Persist state (cache device tracks locally so opening the app shows songs immediately)
   useEffect(() => {
     try {
-      const serializable = tracks.filter((t) => !t.isLocalImport);
+      const serializable = tracks.filter((t) => !t.audioUrl?.startsWith('blob:'));
       localStorage.setItem(STORAGE_KEYS.tracks, JSON.stringify(serializable));
     } catch {
       // ignore quota errors
@@ -407,7 +475,11 @@ export default function App() {
       setIsPlaying(false);
     } else {
       setIsPlaying(true);
-      await audioEngine.playTrack(currentTrack, positionSec);
+      if (positionSec > 0 && audioEngine.isTrackLoaded(currentTrack.id)) {
+        await audioEngine.resume();
+      } else {
+        await audioEngine.playTrack(currentTrack, positionSec);
+      }
     }
   }, [currentTrack, isPlaying, positionSec]);
 
@@ -476,15 +548,17 @@ export default function App() {
     }
   }, [queue, currentTrack, positionSec]);
 
-  // Wire audio engine callbacks
+  // Wire audio engine callbacks (including native audio focus / state updates)
   useEffect(() => {
     audioEngine.setCallbacks(
       (pos) => setPositionSec(pos),
       () => {
         void handleNext(true);
-      }
+      },
+      (playing) => setIsPlaying(playing),
+      (errMsg) => showToast(errMsg)
     );
-  }, [handleNext]);
+  }, [handleNext, showToast]);
 
   // Wire MediaSession API for Lock Screen & Notification controls
   useEffect(() => {
@@ -798,20 +872,18 @@ export default function App() {
           onClick={() => void playTrack(track, drillFilter ? drillTracks : visibleTracks)}
           className="flex flex-1 items-center gap-3.5 min-w-0 text-left min-h-[44px]"
         >
-          {track.coverUrl ? (
-            <img
-              src={track.coverUrl}
-              alt={track.album}
-              referrerPolicy="no-referrer"
-              className="w-12 h-12 rounded-xl object-cover shrink-0 border border-black/10 dark:border-white/10"
-            />
-          ) : (
-            <div className="w-12 h-12 rounded-xl bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
-              <Disc3
-                className={`w-6 h-6 ${active ? 'text-[var(--accent)]' : 'text-[#6B675E] dark:text-[#9E9A90]'}`}
-              />
-            </div>
-          )}
+          <CoverImage
+            src={track.coverUrl}
+            alt={track.album}
+            className="w-12 h-12 rounded-xl object-cover shrink-0 border border-black/10 dark:border-white/10"
+            fallback={
+              <div className="w-12 h-12 rounded-xl bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
+                <Disc3
+                  className={`w-6 h-6 ${active ? 'text-[var(--accent)]' : 'text-[#6B675E] dark:text-[#9E9A90]'}`}
+                />
+              </div>
+            }
+          />
 
           <div className="flex-1 min-w-0">
             <p className={`text-sm font-semibold truncate ${active ? 'text-[var(--accent)]' : ''}`}>
@@ -1147,7 +1219,14 @@ export default function App() {
                     <button
                       onClick={() => {
                         setSettings((prev) => ({ ...prev, autoSyncPermission: true }));
-                        scanDeviceStorage();
+                        const bridge = (window as unknown as {
+                          AndroidBridge?: { requestPermissionAndScan?: () => void };
+                        }).AndroidBridge;
+                        if (bridge && typeof bridge.requestPermissionAndScan === 'function') {
+                          bridge.requestPermissionAndScan();
+                        } else {
+                          scanDeviceStorage(true);
+                        }
                       }}
                       className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold shadow-lg active:scale-95 transition-transform"
                     >
@@ -1169,18 +1248,16 @@ export default function App() {
                     className="group text-left rounded-2xl bg-black/[0.03] dark:bg-[#141417] border border-black/10 dark:border-white/10 p-3 hover:border-[var(--accent)]/60 transition-colors"
                   >
                     <div className="aspect-square rounded-xl overflow-hidden bg-black/10 dark:bg-white/10 mb-3">
-                      {alb.coverUrl ? (
-                        <img
-                          src={alb.coverUrl}
-                          alt={alb.name}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Disc3 className="w-10 h-10 text-[var(--accent)] opacity-70" />
-                        </div>
-                      )}
+                      <CoverImage
+                        src={alb.coverUrl}
+                        alt={alb.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        fallback={
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Disc3 className="w-10 h-10 text-[var(--accent)] opacity-70" />
+                          </div>
+                        }
+                      />
                     </div>
                     <p className="text-sm font-semibold truncate">{alb.name}</p>
                     <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
@@ -1199,18 +1276,16 @@ export default function App() {
                     }
                     className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] rounded-xl text-left min-h-[56px]"
                   >
-                    {art.coverUrl ? (
-                      <img
-                        src={art.coverUrl}
-                        alt={art.name}
-                        referrerPolicy="no-referrer"
-                        className="w-11 h-11 rounded-full object-cover shrink-0 border border-black/10 dark:border-white/10"
-                      />
-                    ) : (
-                      <div className="w-11 h-11 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
-                        <User className="w-5 h-5 text-[var(--accent)]" />
-                      </div>
-                    )}
+                    <CoverImage
+                      src={art.coverUrl}
+                      alt={art.name}
+                      className="w-11 h-11 rounded-full object-cover shrink-0 border border-black/10 dark:border-white/10"
+                      fallback={
+                        <div className="w-11 h-11 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
+                          <User className="w-5 h-5 text-[var(--accent)]" />
+                        </div>
+                      }
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">{art.name}</p>
                       <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
@@ -1260,18 +1335,16 @@ export default function App() {
                       className="group text-left rounded-2xl bg-black/[0.03] dark:bg-[#141417] border border-black/10 dark:border-white/10 overflow-hidden hover:border-[var(--accent)]/60 transition-colors"
                     >
                       <div className="aspect-video relative bg-black/20 overflow-hidden">
-                        {vid.coverUrl ? (
-                          <img
-                            src={vid.coverUrl}
-                            alt={vid.title}
-                            referrerPolicy="no-referrer"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Video className="w-10 h-10 text-[var(--accent)]" />
-                          </div>
-                        )}
+                        <CoverImage
+                          src={vid.coverUrl}
+                          alt={vid.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          fallback={
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Video className="w-10 h-10 text-[var(--accent)]" />
+                            </div>
+                          }
+                        />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                         <span className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/75 text-white text-[11px] font-mono-tabular">
                           {formatTime(vid.durationSec)}
@@ -1444,27 +1517,18 @@ export default function App() {
                 onClick={() => setNowPlayingOpen(true)}
                 className="w-52 h-52 rounded-full p-1.5 border-2 border-[var(--accent)]/40 bg-[#141417] cursor-pointer shadow-2xl"
               >
-                {currentTrack.coverUrl ? (
-                  <div
-                    className={`relative w-full h-full rounded-full overflow-hidden ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}
-                  >
-                    <img
-                      src={currentTrack.coverUrl}
-                      alt={currentTrack.album}
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-8 h-8 rounded-full bg-[#0B0B0D]/90 border-2 border-[var(--accent)]/70" />
+                <CoverImage
+                  src={currentTrack.coverUrl}
+                  alt={currentTrack.album}
+                  className={`w-full h-full rounded-full object-cover ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}
+                  fallback={
+                    <div
+                      className={`w-full h-full rounded-full bg-[#1C1C21] flex items-center justify-center ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}
+                    >
+                      <Disc3 className="w-20 h-20 text-[var(--accent)]" />
                     </div>
-                  </div>
-                ) : (
-                  <div
-                    className={`w-full h-full rounded-full bg-[#1C1C21] flex items-center justify-center ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}
-                  >
-                    <Disc3 className="w-20 h-20 text-[var(--accent)]" />
-                  </div>
-                )}
+                  }
+                />
               </div>
             </div>
 
@@ -1621,18 +1685,16 @@ export default function App() {
               onClick={() => setNowPlayingOpen(true)}
               className="flex flex-1 items-center gap-3 min-w-0 text-left min-h-[44px]"
             >
-              {currentTrack.coverUrl ? (
-                <img
-                  src={currentTrack.coverUrl}
-                  alt={currentTrack.album}
-                  referrerPolicy="no-referrer"
-                  className="w-11 h-11 rounded-full object-cover shrink-0 border border-[var(--accent)]/40"
-                />
-              ) : (
-                <div className="w-11 h-11 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
-                  <Disc3 className="w-5 h-5 text-[var(--accent)]" />
-                </div>
-              )}
+              <CoverImage
+                src={currentTrack.coverUrl}
+                alt={currentTrack.album}
+                className="w-11 h-11 rounded-full object-cover shrink-0 border border-[var(--accent)]/40"
+                fallback={
+                  <div className="w-11 h-11 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
+                    <Disc3 className="w-5 h-5 text-[var(--accent)]" />
+                  </div>
+                }
+              />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold truncate">{currentTrack.title}</p>
                 <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
@@ -1682,6 +1744,16 @@ export default function App() {
         onTogglePlay={() => void handleTogglePlay()}
         onNext={() => void handleNext(false)}
         onPrev={() => void handlePrev()}
+        onRescanLibrary={() => {
+          const bridge = (window as unknown as {
+            AndroidBridge?: { requestPermissionAndScan?: () => void };
+          }).AndroidBridge;
+          if (bridge && typeof bridge.requestPermissionAndScan === 'function') {
+            bridge.requestPermissionAndScan();
+          } else {
+            scanDeviceStorage(true);
+          }
+        }}
       />
 
       {/* Full-Screen Now Playing Screen */}
