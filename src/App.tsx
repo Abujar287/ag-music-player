@@ -42,6 +42,7 @@ import {
 import { NowPlayingModal } from './components/NowPlayingModal';
 import { SideDrawer } from './components/SideDrawer';
 import { CoverImage } from './components/CoverImage';
+import { SeekBar } from './components/SeekBar';
 import {
   ACCENT_OPTIONS,
   APP_VERSION,
@@ -173,11 +174,14 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [desktopScrubSec, setDesktopScrubSec] = useState<number | null>(null);
 
   const pullStartYRef = useRef<number | null>(null);
   const refreshTimerRef = useRef<number | null>(null);
   const tracksRef = useRef<Track[]>(tracks);
   const currentTrackIdRef = useRef<string>(currentTrackId);
+  const nowPlayingBackRef = useRef<(() => boolean) | null>(null);
+  const backHandlerRef = useRef<() => boolean>(() => false);
   const activeUpdateReleaseRef = useRef<{ release: GitHubReleaseInfo; currentVersionTag: string } | null>(null);
 
   useEffect(() => {
@@ -187,6 +191,78 @@ export default function App() {
   useEffect(() => {
     currentTrackIdRef.current = currentTrackId;
   }, [currentTrackId]);
+
+  backHandlerRef.current = () => {
+    if (updateState.status !== 'idle') {
+      if (updateState.status !== 'downloading') {
+        setUpdateState({ status: 'idle' });
+      }
+      return true;
+    }
+    if (pendingDeleteTrack) {
+      setPendingDeleteTrack(null);
+      return true;
+    }
+    if (sleepTimerOpen) {
+      setSleepTimerOpen(false);
+      return true;
+    }
+    if (editTagTrack) {
+      setEditTagTrack(null);
+      return true;
+    }
+    if (addToPlaylistTrack) {
+      setAddToPlaylistTrack(null);
+      return true;
+    }
+    if (playlistModal.open) {
+      setPlaylistModal({ open: false, mode: 'create' });
+      return true;
+    }
+    if (trackMenuId) {
+      setTrackMenuId(null);
+      return true;
+    }
+    if (playlistMenuId) {
+      setPlaylistMenuId(null);
+      return true;
+    }
+    if (nowPlayingOpen) {
+      if (nowPlayingBackRef.current?.()) {
+        return true;
+      }
+      setNowPlayingOpen(false);
+      return true;
+    }
+    if (drawerOpen) {
+      setDrawerOpen(false);
+      return true;
+    }
+    if (searchOpen) {
+      setSearchOpen(false);
+      setSearchQuery('');
+      return true;
+    }
+    if (drillFilter) {
+      setDrillFilter(null);
+      return true;
+    }
+    if (activeTab !== 'tracks') {
+      setActiveTab('tracks');
+      return true;
+    }
+    return false;
+  };
+
+  useEffect(() => {
+    const win = window as unknown as {
+      __agHandleBackButton?: () => boolean;
+    };
+    win.__agHandleBackButton = () => backHandlerRef.current();
+    return () => {
+      delete win.__agHandleBackButton;
+    };
+  }, []);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -585,7 +661,7 @@ export default function App() {
       setIsPlaying(false);
     } else {
       setIsPlaying(true);
-      if (positionSec > 0 && audioEngine.isTrackLoaded(currentTrack.id)) {
+      if (audioEngine.isTrackLoaded(currentTrack.id)) {
         await audioEngine.resume();
       } else {
         await audioEngine.playTrack(currentTrack, positionSec);
@@ -658,7 +734,7 @@ export default function App() {
     }
   }, [queue, currentTrack, positionSec]);
 
-  // Wire audio engine callbacks (including native audio focus / state updates)
+  // Wire audio engine callbacks (including native audio focus / duration / state updates)
   useEffect(() => {
     audioEngine.setCallbacks(
       (pos) => setPositionSec(pos),
@@ -666,7 +742,22 @@ export default function App() {
         void handleNext(true);
       },
       (playing) => setIsPlaying(playing),
-      (errMsg) => showToast(errMsg)
+      (errMsg) => showToast(errMsg),
+      (durSec) => {
+        const rounded = Math.round(durSec);
+        const activeId = currentTrackIdRef.current;
+        if (!activeId || rounded <= 0) return;
+        setTracks((prev) =>
+          prev.some((t) => t.id === activeId && (t.durationSec <= 0 || Math.abs(t.durationSec - rounded) >= 2))
+            ? prev.map((t) => (t.id === activeId ? { ...t, durationSec: rounded } : t))
+            : prev
+        );
+        setQueue((prev) =>
+          prev.some((t) => t.id === activeId && (t.durationSec <= 0 || Math.abs(t.durationSec - rounded) >= 2))
+            ? prev.map((t) => (t.id === activeId ? { ...t, durationSec: rounded } : t))
+            : prev
+        );
+      }
     );
   }, [handleNext, showToast]);
 
@@ -1159,11 +1250,6 @@ export default function App() {
       </div>
     );
   };
-
-  const progressPct =
-    currentTrack && currentTrack.durationSec > 0
-      ? Math.min(100, (positionSec / currentTrack.durationSec) * 100)
-      : 0;
 
   const categoryGridItems: Array<{
     id: LibraryTab;
@@ -1836,26 +1922,19 @@ export default function App() {
             </div>
 
             {/* 2nd Row: Duration Seek Bar */}
-            <div className="space-y-1.5">
-              <input
-                type="range"
-                min={0}
-                max={Math.max(1, currentTrack.durationSec)}
-                step={1}
-                value={Math.floor(positionSec)}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
+            <div className="space-y-1">
+              <SeekBar
+                positionSec={positionSec}
+                durationSec={currentTrack.durationSec}
+                onSeek={(val) => {
                   audioEngine.seekTo(val);
                   setPositionSec(val);
                 }}
-                aria-label="Seek track"
-                style={{
-                  background: `linear-gradient(to right, var(--accent) ${progressPct}%, rgba(128,128,128,0.28) ${progressPct}%)`,
-                }}
-                className="ag-slider w-full h-1.5 rounded-full"
+                onPreviewChange={setDesktopScrubSec}
+                ariaLabel="Seek track"
               />
               <div className="flex justify-between text-[11px] font-mono-tabular text-[#6B675E] dark:text-[#9E9A90]">
-                <span>{formatTime(positionSec)}</span>
+                <span>{formatTime(desktopScrubSec !== null ? desktopScrubSec : positionSec)}</span>
                 <span>{formatTime(currentTrack.durationSec)}</span>
               </div>
             </div>
@@ -1923,12 +2002,16 @@ export default function App() {
       {/* Mobile Persistent Bottom Mini-Player */}
       {currentTrack && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-black/10 dark:border-white/10 bg-[#F8F7F4]/95 dark:bg-[#141417]/95 backdrop-blur-md">
-          <div className="w-full h-0.5 bg-black/10 dark:bg-white/10">
-            <div
-              className="h-full bg-[var(--accent)] transition-all duration-200"
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
+          <SeekBar
+            variant="mini"
+            positionSec={positionSec}
+            durationSec={currentTrack.durationSec}
+            onSeek={(val) => {
+              audioEngine.seekTo(val);
+              setPositionSec(val);
+            }}
+            ariaLabel="Seek track in mini player"
+          />
           <div className="px-4 py-2 flex items-center gap-3">
             <button
               onClick={() => setNowPlayingOpen(true)}
@@ -2036,6 +2119,7 @@ export default function App() {
         onDeleteTrack={handleDeleteTrack}
         onSelectQueueTrack={(t) => void playTrack(t)}
         onReorderQueue={handleReorderQueue}
+        backHandlerRef={nowPlayingBackRef}
       />
 
       {/* Modals */}

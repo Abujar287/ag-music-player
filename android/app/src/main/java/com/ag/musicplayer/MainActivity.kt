@@ -23,10 +23,12 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
@@ -224,6 +226,35 @@ class MainActivity : ComponentActivity() {
         }
 
         setContentView(webView)
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (!::webView.isInitialized) {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                    return
+                }
+                webView.evaluateJavascript(
+                    "(function(){ try { return !!(window.__agHandleBackButton && window.__agHandleBackButton()); } catch(e) { return false; } })()"
+                ) { result ->
+                    if (result?.trim() == "true") {
+                        return@evaluateJavascript
+                    }
+                    if (webView.canGoBack()) {
+                        webView.goBack()
+                        return@evaluateJavascript
+                    }
+                    if (mediaController?.isPlaying == true) {
+                        moveTaskToBack(true)
+                    } else {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                        isEnabled = true
+                    }
+                }
+            }
+        })
     }
 
     override fun onResume() {
@@ -246,8 +277,10 @@ class MainActivity : ComponentActivity() {
                 mediaController = controller
                 controller.addListener(object : Player.Listener {
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        val posSec = controller.currentPosition / 1000.0
-                        evalJs("window.__agNativeCallbacks?.onStateChange?.($isPlaying, $posSec);")
+                        val posSec = controller.currentPosition.coerceAtLeast(0L) / 1000.0
+                        val durMs = controller.duration
+                        val durSec = if (durMs != C.TIME_UNSET && durMs > 0L) durMs / 1000.0 else 0.0
+                        evalJs("window.__agNativeCallbacks?.onStateChange?.($isPlaying, $posSec, $durSec);")
                         if (isPlaying) {
                             startProgressPolling()
                         } else {
@@ -256,7 +289,12 @@ class MainActivity : ComponentActivity() {
                     }
 
                     override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_ENDED) {
+                        if (playbackState == Player.STATE_READY) {
+                            val posSec = controller.currentPosition.coerceAtLeast(0L) / 1000.0
+                            val durMs = controller.duration
+                            val durSec = if (durMs != C.TIME_UNSET && durMs > 0L) durMs / 1000.0 else 0.0
+                            evalJs("window.__agNativeCallbacks?.onProgress?.($posSec, $durSec);")
+                        } else if (playbackState == Player.STATE_ENDED) {
                             progressJob?.cancel()
                             evalJs("window.__agNativeCallbacks?.onEnded?.();")
                         }
@@ -282,8 +320,10 @@ class MainActivity : ComponentActivity() {
             while (isActive) {
                 val controller = mediaController
                 if (controller != null && controller.isPlaying) {
-                    val posSec = controller.currentPosition / 1000.0
-                    evalJs("window.__agNativeCallbacks?.onProgress?.($posSec);")
+                    val posSec = controller.currentPosition.coerceAtLeast(0L) / 1000.0
+                    val durMs = controller.duration
+                    val durSec = if (durMs != C.TIME_UNSET && durMs > 0L) durMs / 1000.0 else 0.0
+                    evalJs("window.__agNativeCallbacks?.onProgress?.($posSec, $durSec);")
                 }
                 delay(250L)
             }
@@ -435,11 +475,9 @@ class MainActivity : ComponentActivity() {
                     .setUri(mediaUri)
                     .setMediaMetadata(metaBuilder.build())
                     .build()
-                controller.setMediaItem(item)
+                val startMs = if (startSec > 0.0) (startSec * 1000.0).toLong() else 0L
+                controller.setMediaItem(item, startMs)
                 controller.prepare()
-                if (startSec > 0.0) {
-                    controller.seekTo((startSec * 1000.0).toLong())
-                }
                 controller.play()
             }
         }
@@ -467,7 +505,14 @@ class MainActivity : ComponentActivity() {
 
     fun seekNativeTrack(sec: Double) {
         runOnUiThread {
-            mediaController?.seekTo((sec * 1000.0).toLong())
+            val controller = mediaController ?: return@runOnUiThread
+            val durMs = controller.duration
+            val targetMs = (sec * 1000.0).toLong().let { ms ->
+                if (durMs != C.TIME_UNSET && durMs > 0L) ms.coerceIn(0L, durMs) else ms.coerceAtLeast(0L)
+            }
+            controller.seekTo(targetMs)
+            val durSec = if (durMs != C.TIME_UNSET && durMs > 0L) durMs / 1000.0 else 0.0
+            evalJs("window.__agNativeCallbacks?.onProgress?.(${targetMs / 1000.0}, $durSec);")
         }
     }
 
@@ -631,15 +676,6 @@ class MainActivity : ComponentActivity() {
         progressJob?.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }
         super.onDestroy()
-    }
-
-    @Suppress("DEPRECATION")
-    override fun onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            super.onBackPressed()
-        }
     }
 }
 

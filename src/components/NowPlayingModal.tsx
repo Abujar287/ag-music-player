@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ChevronDown,
   ListMusic,
@@ -27,6 +27,7 @@ import {
 import { RepeatMode, SleepTimerState, Track } from '../types/music';
 import { formatTime } from '../utils/formatters';
 import { CoverImage } from './CoverImage';
+import { SeekBar } from './SeekBar';
 
 interface NowPlayingModalProps {
   open: boolean;
@@ -53,6 +54,7 @@ interface NowPlayingModalProps {
   onDeleteTrack: (track: Track) => void;
   onSelectQueueTrack: (track: Track) => void;
   onReorderQueue: (fromIdx: number, toIdx: number) => void;
+  backHandlerRef?: React.MutableRefObject<(() => boolean) | null>;
 }
 
 export const NowPlayingModal: React.FC<NowPlayingModalProps> = ({
@@ -80,14 +82,46 @@ export const NowPlayingModal: React.FC<NowPlayingModalProps> = ({
   onDeleteTrack,
   onSelectQueueTrack,
   onReorderQueue,
+  backHandlerRef,
 }) => {
   const [showQueueSheet, setShowQueueSheet] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [scrubPreviewSec, setScrubPreviewSec] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!backHandlerRef) return;
+    if (!open) {
+      backHandlerRef.current = null;
+      return;
+    }
+    backHandlerRef.current = () => {
+      if (showQueueSheet) {
+        setShowQueueSheet(false);
+        return true;
+      }
+      if (showMoreMenu) {
+        setShowMoreMenu(false);
+        return true;
+      }
+      return false;
+    };
+    return () => {
+      backHandlerRef.current = null;
+    };
+  }, [backHandlerRef, open, showQueueSheet, showMoreMenu]);
+
+  useEffect(() => {
+    if (!open) {
+      setShowQueueSheet(false);
+      setShowMoreMenu(false);
+      setScrubPreviewSec(null);
+    }
+  }, [open]);
 
   if (!open || !track) return null;
 
-  const progressPct = track.durationSec > 0 ? Math.min(100, (positionSec / track.durationSec) * 100) : 0;
+  const displayedPosSec = scrubPreviewSec !== null ? scrubPreviewSec : positionSec;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#F8F7F4] dark:bg-[#0B0B0D] text-[#111114] dark:text-[#F5F3EE]">
@@ -264,25 +298,17 @@ export const NowPlayingModal: React.FC<NowPlayingModalProps> = ({
           </div>
         </div>
 
-        {/* 2nd Row: Duration / Interactive Seek Bar */}
-        <div className="w-full space-y-2">
-          <div className="relative flex items-center">
-            <input
-              type="range"
-              min={0}
-              max={Math.max(1, track.durationSec)}
-              step={1}
-              value={Math.floor(positionSec)}
-              onChange={(e) => onSeek(Number(e.target.value))}
-              aria-label="Seek audio position"
-              style={{
-                background: `linear-gradient(to right, var(--accent) ${progressPct}%, rgba(128,128,128,0.28) ${progressPct}%)`,
-              }}
-              className="ag-slider w-full h-1.5 rounded-full"
-            />
-          </div>
+        {/* 2nd Row: Duration / Smooth Interactive Seek Bar */}
+        <div className="w-full space-y-1">
+          <SeekBar
+            positionSec={positionSec}
+            durationSec={track.durationSec}
+            onSeek={onSeek}
+            onPreviewChange={setScrubPreviewSec}
+            ariaLabel="Seek audio position"
+          />
           <div className="flex items-center justify-between text-xs font-mono-tabular text-[#6B675E] dark:text-[#9E9A90]">
-            <span>{formatTime(positionSec)}</span>
+            <span>{formatTime(displayedPosSec)}</span>
             <span>{formatTime(track.durationSec)}</span>
           </div>
         </div>

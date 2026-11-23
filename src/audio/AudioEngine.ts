@@ -21,8 +21,8 @@ declare global {
   interface Window {
     AndroidBridge?: AndroidAudioBridge & Record<string, unknown>;
     __agNativeCallbacks?: {
-      onProgress?: (posSec: number) => void;
-      onStateChange?: (isPlaying: boolean, posSec?: number) => void;
+      onProgress?: (posSec: number, durSec?: number) => void;
+      onStateChange?: (isPlaying: boolean, posSec?: number, durSec?: number) => void;
       onEnded?: () => void;
       onError?: (msg: string) => void;
     };
@@ -43,6 +43,8 @@ export class AGMusicAudioEngine {
   private currentTrack: Track | null = null;
   private isPlaying = false;
   private positionSec = 0;
+  private activeDurationSec = 0;
+  private seekLockUntil = 0;
   private progressTimer: number | null = null;
   private eqState: EqualizerState = {
     enabled: true,
@@ -56,17 +58,35 @@ export class AGMusicAudioEngine {
   private onEndedCallback: (() => void) | null = null;
   private onStateChangeCallback: ((playing: boolean) => void) | null = null;
   private onErrorCallback: ((message: string) => void) | null = null;
+  private onDurationCallback: ((durSec: number) => void) | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
       window.__agNativeCallbacks = {
-        onProgress: (posSec: number) => {
-          this.positionSec = posSec;
-          this.onTickCallback?.(posSec);
+        onProgress: (posSec: number, durSec?: number) => {
+          if (typeof durSec === 'number' && Number.isFinite(durSec) && durSec > 0) {
+            this.activeDurationSec = durSec;
+            this.onDurationCallback?.(durSec);
+          }
+          if (Date.now() < this.seekLockUntil) {
+            return;
+          }
+          if (typeof posSec === 'number' && Number.isFinite(posSec)) {
+            this.positionSec = posSec;
+            this.onTickCallback?.(posSec);
+          }
         },
-        onStateChange: (playing: boolean, posSec?: number) => {
+        onStateChange: (playing: boolean, posSec?: number, durSec?: number) => {
           this.isPlaying = playing;
-          if (typeof posSec === 'number' && !Number.isNaN(posSec)) {
+          if (typeof durSec === 'number' && Number.isFinite(durSec) && durSec > 0) {
+            this.activeDurationSec = durSec;
+            this.onDurationCallback?.(durSec);
+          }
+          if (
+            typeof posSec === 'number' &&
+            Number.isFinite(posSec) &&
+            Date.now() >= this.seekLockUntil
+          ) {
             this.positionSec = posSec;
             this.onTickCallback?.(posSec);
           }
@@ -75,10 +95,12 @@ export class AGMusicAudioEngine {
         onEnded: () => {
           this.isPlaying = false;
           this.positionSec = 0;
+          this.seekLockUntil = 0;
           this.onEndedCallback?.();
         },
         onError: (msg: string) => {
           this.isPlaying = false;
+          this.seekLockUntil = 0;
           this.onStateChangeCallback?.(false);
           this.onErrorCallback?.(msg);
         },
@@ -94,12 +116,14 @@ export class AGMusicAudioEngine {
     onTick: (posSec: number) => void,
     onEnded: () => void,
     onStateChange?: (playing: boolean) => void,
-    onError?: (message: string) => void
+    onError?: (message: string) => void,
+    onDuration?: (durSec: number) => void
   ) {
     this.onTickCallback = onTick;
     this.onEndedCallback = onEnded;
     this.onStateChangeCallback = onStateChange ?? null;
     this.onErrorCallback = onError ?? null;
+    this.onDurationCallback = onDuration ?? null;
   }
 
   public setFadeOnPause(enabled: boolean) {
@@ -114,6 +138,18 @@ export class AGMusicAudioEngine {
     if (this.mediaElement) return;
     this.mediaElement = new Audio();
     this.mediaElement.preload = 'auto';
+    const syncDuration = () => {
+      if (
+        this.mediaElement &&
+        Number.isFinite(this.mediaElement.duration) &&
+        this.mediaElement.duration > 0
+      ) {
+        this.activeDurationSec = this.mediaElement.duration;
+        this.onDurationCallback?.(this.mediaElement.duration);
+      }
+    };
+    this.mediaElement.addEventListener('loadedmetadata', syncDuration);
+    this.mediaElement.addEventListener('durationchange', syncDuration);
     this.mediaElement.addEventListener('ended', () => {
       this.stopProgressTimer();
       this.isPlaying = false;
@@ -228,6 +264,8 @@ export class AGMusicAudioEngine {
   public async playTrack(track: Track, startSec = 0) {
     this.currentTrack = track;
     this.positionSec = startSec;
+    this.activeDurationSec = track.durationSec || 0;
+    this.seekLockUntil = 0;
 
     // 1. Native Android Media3 ExoPlayer path (clean hardware decoding + audio focus)
     if (this.hasNativeBridge()) {
@@ -336,8 +374,10 @@ export class AGMusicAudioEngine {
 
   public seekTo(sec: number) {
     if (!this.currentTrack) return;
-    const clamped = Math.max(0, Math.min(sec, Math.max(1, this.currentTrack.durationSec)));
+    const maxDur = Math.max(1, this.activeDurationSec, this.currentTrack.durationSec || 0);
+    const clamped = Math.max(0, Math.min(sec, maxDur));
     this.positionSec = clamped;
+    this.seekLockUntil = Date.now() + 550;
 
     if (this.hasNativeBridge()) {
       window.AndroidBridge?.seekTo?.(clamped);
@@ -355,6 +395,7 @@ export class AGMusicAudioEngine {
     this.stopProgressTimer();
     this.progressTimer = window.setInterval(() => {
       if (!this.isPlaying || !this.currentTrack || !this.mediaElement) return;
+      if (Date.now() < this.seekLockUntil) return;
       this.positionSec = this.mediaElement.currentTime;
       this.onTickCallback?.(this.positionSec);
     }, 250);
