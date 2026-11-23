@@ -112,4 +112,31 @@ class WebAppInterface(private val activity: MainActivity, private val updateMana
     fun getVersionName(): String {
         return BuildConfig.VERSION_NAME
     }
+
+    @JavascriptInterface
+    fun getLocalAudioTracksJson(): String {
+        val scanner = MediaScanner(activity)
+        val tracks = scanner.scanLocalAudio(AppSettings())
+        val jsonArray = org.json.JSONArray()
+        for (track in tracks) {
+            val obj = org.json.JSONObject().apply {
+                put("id", "device-${track.id}")
+                put("title", track.title)
+                put("artist", track.artist)
+                put("album", track.album)
+                put("genre", track.genre)
+                put("folderPath", track.folderPath)
+                put("folder", track.folder)
+                put("filePath", track.filePath)
+                put("contentUri", track.contentUri.toString())
+                put("coverUrl", track.albumArtUri?.toString() ?: "")
+                put("durationSec", track.durationMs / 1000)
+                put("sizeKb", track.sizeBytes / 1024)
+                put("mediaType", "audio")
+                put("isLocalImport", true)
+            }
+            jsonArray.put(obj)
+        }
+        return jsonArray.toString()
+    }
 }

@@ -175,11 +175,26 @@ export default function App() {
     setToast(msg);
   }, []);
 
+  const scanDeviceStorage = useCallback(() => {
+    try {
+      const bridge = (window as any).AndroidBridge;
+      if (bridge && typeof bridge.getLocalAudioTracksJson === 'function') {
+        const jsonStr = bridge.getLocalAudioTracksJson();
+        const parsed = JSON.parse(jsonStr) as Track[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTracks(parsed);
+          showToast(`Synced ${parsed.length} audio tracks from device storage`);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to scan device audio:", e);
+    }
+  }, [showToast]);
+
   useEffect(() => {
-    if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 3200);
-    return () => clearTimeout(t);
-  }, [toast]);
+    scanDeviceStorage();
+  }, [scanDeviceStorage]);
 
   // Persist state
   useEffect(() => {
@@ -1121,14 +1136,23 @@ export default function App() {
             ) : activeTab === 'tracks' ? (
               <div className="divide-y divide-black/5 dark:divide-white/5">
                 {audioTracks.length === 0 ? (
-                  <div className="py-12 text-center space-y-2">
-                    <Music2 className="w-10 h-10 mx-auto text-[#6B675E] dark:text-[#9E9A90] opacity-50" />
-                    <p className="text-sm font-medium">No matching audio tracks</p>
-                    <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
-                      {settings.autoSyncPermission
-                        ? 'Try clearing your search or adjusting short-clip filter settings.'
-                        : 'Enable Auto-Sync Device Audio above to sync songs.'}
-                    </p>
+                  <div className="py-12 text-center space-y-4">
+                    <Music2 className="w-12 h-12 mx-auto text-[var(--accent)] opacity-80" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold">No audio tracks found</p>
+                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] max-w-xs mx-auto">
+                        Grant storage permission and scan your device storage for MP3, WAV, M4A, FLAC, and AAC files.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSettings((prev) => ({ ...prev, autoSyncPermission: true }));
+                        scanDeviceStorage();
+                      }}
+                      className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold shadow-lg active:scale-95 transition-transform"
+                    >
+                      Rescan / Grant Permission
+                    </button>
                   </div>
                 ) : (
                   audioTracks.map(renderTrackRow)
