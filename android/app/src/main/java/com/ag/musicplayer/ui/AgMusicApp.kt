@@ -860,7 +860,7 @@ fun AgMusicApp(
                 text = { Text("Tap Install / Update to replace the installed app while preserving your playlists and settings.") },
                 confirmButton = {
                     Button(
-                        onClick = { updateManager.triggerApkInstall(state.apkFile) },
+                        onClick = { updateManager.triggerApkInstall(state.apkFile, state.apkUri) },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4AF37), contentColor = Color(0xFF0B0B0D))
                     ) { Text("Install / Update") }
                 }

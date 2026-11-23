@@ -11,6 +11,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import android.util.Size
@@ -628,23 +629,37 @@ class MainActivity : ComponentActivity() {
     fun launchUpdateInIdm(apkUrl: String, apkName: String): Boolean {
         val pkg = findInstalledIdmPackage() ?: return false
         val parsedUri = Uri.parse(apkUrl)
+        val cleanName = apkName.trim()
+            .replace(Regex("[\\\\/:*?\"<>|]"), "-")
+            .removeSuffix(".tmp")
+            .removeSuffix(".download")
+            .let { if (it.endsWith(".apk", ignoreCase = true)) it else "${it.ifBlank { "AG-Music-Player" }}.apk" }
+        @Suppress("DEPRECATION")
+        val publicDownloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
         val intents = listOf(
             Intent(Intent.ACTION_VIEW, parsedUri).apply {
                 setPackage(pkg)
-                putExtra("extra_filename", apkName)
-                putExtra("android.intent.extra.TITLE", apkName)
+                putExtra("extra_filename", cleanName)
+                putExtra("android.intent.extra.TITLE", cleanName)
+                putExtra("extra_path", publicDownloadDir)
+                putExtra("download_path", publicDownloadDir)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             },
             Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(parsedUri, "application/vnd.android.package-archive")
                 setPackage(pkg)
-                putExtra("extra_filename", apkName)
+                putExtra("extra_filename", cleanName)
+                putExtra("extra_path", publicDownloadDir)
+                putExtra("download_path", publicDownloadDir)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             },
             Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_TEXT, apkUrl)
-                putExtra(Intent.EXTRA_SUBJECT, apkName)
+                putExtra(Intent.EXTRA_SUBJECT, cleanName)
+                putExtra("extra_filename", cleanName)
+                putExtra("extra_path", publicDownloadDir)
+                putExtra("download_path", publicDownloadDir)
                 setPackage(pkg)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
