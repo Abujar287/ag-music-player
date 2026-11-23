@@ -5,7 +5,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -36,6 +40,8 @@ class MainActivity : ComponentActivity() {
                 databaseEnabled = true
                 allowFileAccess = true
                 allowContentAccess = true
+                allowFileAccessFromFileURLs = true
+                allowUniversalAccessFromFileURLs = true
                 mediaPlaybackRequiresUserGesture = false
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 setSupportZoom(false)
@@ -50,6 +56,21 @@ class MainActivity : ComponentActivity() {
                         return true
                     }
                     return false
+                }
+
+                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                    super.onReceivedError(view, request, error)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && request?.isForMainFrame == true) {
+                        Log.e("WebViewError", "Failed to load URL: ${request.url} Error: ${error?.description}")
+                    }
+                }
+            }
+            webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
+                    consoleMessage?.let {
+                        Log.d("WebViewConsole", "${it.message()} -- Line ${it.lineNumber()} of ${it.sourceId()}")
+                    }
+                    return true
                 }
             }
             addJavascriptInterface(WebAppInterface(this@MainActivity, updateManager), "AndroidBridge")
