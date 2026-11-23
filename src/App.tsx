@@ -142,7 +142,7 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(loadInitialSettings);
   const [equalizer, setEqualizer] = useState<EqualizerState>(loadInitialEqualizer);
 
-  const [activeTab, setActiveTab] = useState<LibraryTab>('tracks');
+  const [activeTab, setActiveTab] = useState<LibraryTab | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -268,8 +268,8 @@ export default function App() {
       setDrillFilter(null);
       return true;
     }
-    if (activeTab !== 'tracks') {
-      setActiveTab('tracks');
+    if (activeTab !== null) {
+      setActiveTab(null);
       return true;
     }
     return false;
@@ -1277,20 +1277,50 @@ export default function App() {
       <header className="sticky top-0 z-30 bg-transparent border-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <button
-              onClick={() => {
-                setDrawerSection('menu');
-                setDrawerOpen(true);
-              }}
-              aria-label="Open Navigation Menu"
-              className="min-h-[44px] min-w-[44px] -ml-2 flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+            {activeTab !== null || drillFilter ? (
+              <button
+                onClick={() => {
+                  if (drillFilter) {
+                    setDrillFilter(null);
+                  } else {
+                    setActiveTab(null);
+                  }
+                }}
+                aria-label="Go Back"
+                className="min-h-[44px] min-w-[44px] -ml-2 flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setDrawerSection('menu');
+                  setDrawerOpen(true);
+                }}
+                aria-label="Open Navigation Menu"
+                className="min-h-[44px] min-w-[44px] -ml-2 flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
 
             {!searchOpen && (
               <h1 className="text-base sm:text-lg font-bold tracking-wide text-white truncate whitespace-nowrap">
-                AG Music Player
+                {drillFilter
+                  ? drillFilter.label
+                  : activeTab === 'tracks'
+                    ? 'Tracks'
+                    : activeTab === 'albums'
+                      ? 'Albums'
+                      : activeTab === 'artists'
+                        ? 'Artists'
+                        : activeTab === 'genres'
+                          ? 'Genres'
+                          : activeTab === 'folders'
+                            ? 'Folders'
+                            : activeTab === 'favorites'
+                              ? 'Favorites'
+                              : 'AG Music Player'}
               </h1>
             )}
           </div>
@@ -1429,347 +1459,369 @@ export default function App() {
             </div>
           )}
 
-          {/* 3x2 Grid Section */}
-          <CategorySegmentGrid
-            activeTab={activeTab}
-            hasDrillFilter={Boolean(drillFilter)}
-            counts={{
-              tracks: audioTracks.length,
-              albums: albums.length,
-              artists: artists.length,
-              genres: genres.length,
-              folders: folders.length,
-              favorites: favoriteTracks.length,
-            }}
-            onSelectTab={(tab) => {
-              setActiveTab(tab);
-              setDrillFilter(null);
-            }}
-          />
-
-          {/* Drill-Down Header if inside an Album, Artist, Folder, Genre, or Playlist */}
-          {drillFilter && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="flex items-center justify-between gap-4 pb-3 border-b border-white/10"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <button
-                  onClick={() => setDrillFilter(null)}
-                  className="min-h-[40px] px-2.5 rounded-xl hover:bg-white/10 flex items-center gap-1 text-xs font-semibold text-white shrink-0"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  <span>Back</span>
-                </button>
-                <div className="min-w-0">
-                  <h2 className="text-base font-bold text-white truncate">{drillFilter.label}</h2>
-                  <p className="text-xs text-white/70">
-                    {drillTracks.length} track{drillTracks.length === 1 ? '' : 's'}
-                  </p>
-                </div>
-              </div>
-              {drillTracks.length > 0 && (
-                <button
-                  onClick={() => void playTrack(drillTracks[0], drillTracks)}
-                  className="min-h-[40px] px-4 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold flex items-center gap-1.5 shrink-0"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Play All</span>
-                </button>
-              )}
-            </motion.div>
-          )}
-
-          {/* Library Content View (Borderless items over scenic background) */}
-          <section aria-label="Music Library">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={drillFilter ? `drill-${drillFilter.type}-${drillFilter.value}` : activeTab}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-              >
-            {drillFilter ? (
-              <div className="space-y-1">
-                {drillTracks.length === 0 ? (
-                  <p className="py-10 text-center text-sm text-white/70">
-                    No tracks in this selection.
-                  </p>
-                ) : (
-                  drillTracks.map(renderTrackRow)
-                )}
-              </div>
-            ) : activeTab === 'tracks' ? (
-              <div className="space-y-1">
+          {/* ENTRY PAGE vs DEDICATED CATEGORY PAGE */}
+          {activeTab === null && !drillFilter ? (
+            searchQuery.trim().length > 0 ? (
+              <section aria-label="Search Results" className="space-y-3">
+                <p className="text-xs font-medium text-white/65 px-1">
+                  Search Results ({audioTracks.length})
+                </p>
                 {audioTracks.length === 0 ? (
-                  <div className="py-10 text-center space-y-4">
-                    <Music2 className="w-11 h-11 mx-auto text-[var(--accent)] opacity-90" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-white">No audio tracks found</p>
-                      <p className="text-xs text-white/70 max-w-xs mx-auto">
-                        Grant storage permission and scan your device storage for MP3, WAV, M4A, FLAC, and AAC files.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setSettings((prev) => ({ ...prev, autoSyncPermission: true }));
-                        const bridge = (window as unknown as {
-                          AndroidBridge?: { requestPermissionAndScan?: () => void };
-                        }).AndroidBridge;
-                        if (bridge && typeof bridge.requestPermissionAndScan === 'function') {
-                          bridge.requestPermissionAndScan();
-                        } else {
-                          scanDeviceStorage(true);
-                        }
-                      }}
-                      className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold shadow-lg active:scale-95 transition-transform"
-                    >
-                      Rescan / Grant Permission
-                    </button>
-                  </div>
+                  <p className="py-10 text-center text-sm text-white/70">
+                    No matching audio files found.
+                  </p>
                 ) : (
-                  audioTracks.map(renderTrackRow)
+                  <div className="space-y-1">{audioTracks.map(renderTrackRow)}</div>
                 )}
-              </div>
-            ) : activeTab === 'albums' ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-                {albums.length === 0 ? (
-                  <div className="col-span-full py-10 text-center text-sm text-white/70">
-                    No albums found.
-                  </div>
-                ) : (
-                  albums.map((alb) => (
-                    <button
-                      key={alb.name}
-                      onClick={() =>
-                        setDrillFilter({ type: 'album', value: alb.name, label: alb.name })
-                      }
-                      style={{ backgroundColor: 'var(--scenic-surface, rgba(11, 33, 69, 0.52))' }}
-                      className="group text-left rounded-2xl border-0 backdrop-blur-md p-3 hover:bg-white/[0.12] transition-colors"
-                    >
-                      <div className="aspect-square rounded-xl overflow-hidden bg-white/10 mb-3">
-                        <CoverImage
-                          src={alb.coverUrl}
-                          alt={alb.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          fallback={
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Disc3 className="w-10 h-10 text-[var(--accent)] opacity-80" />
-                            </div>
-                          }
-                        />
-                      </div>
-                      <p className="text-sm font-semibold text-white truncate">{alb.name}</p>
-                      <p className="text-xs text-white/70 truncate">
-                        {alb.artist} · {alb.count} tracks
-                      </p>
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : activeTab === 'artists' ? (
-              <div className="space-y-1">
-                {artists.length === 0 ? (
-                  <div className="py-10 text-center text-sm text-white/70">
-                    No artists found.
-                  </div>
-                ) : (
-                  artists.map((art) => (
-                    <button
-                      key={art.name}
-                      onClick={() =>
-                        setDrillFilter({ type: 'artist', value: art.name, label: art.name })
-                      }
-                      className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-white/[0.08] rounded-xl border-0 text-left min-h-[56px]"
-                    >
-                      <CoverImage
-                        src={art.coverUrl}
-                        alt={art.name}
-                        className="w-11 h-11 rounded-full object-cover shrink-0"
-                        fallback={
-                          <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
-                            <User className="w-5 h-5 text-[var(--accent)]" />
-                          </div>
-                        }
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{art.name}</p>
-                        <p className="text-xs text-white/70">
-                          {art.albums.size} album{art.albums.size === 1 ? '' : 's'} ·{' '}
-                          {art.trackCount} tracks
-                        </p>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : activeTab === 'folders' ? (
-              <div className="space-y-1">
-                {folders.length === 0 ? (
-                  <div className="py-10 text-center text-sm text-white/70">
-                    No folders found.
-                  </div>
-                ) : (
-                  folders.map((fld) => (
-                    <button
-                      key={fld.path}
-                      onClick={() =>
-                        setDrillFilter({ type: 'folder', value: fld.path, label: fld.name })
-                      }
-                      className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-white/[0.08] rounded-xl border-0 text-left min-h-[56px]"
-                    >
-                      <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
-                        <Folder className="w-5 h-5 text-[var(--accent)]" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{fld.name}</p>
-                      </div>
-                      <span className="text-xs font-mono-tabular text-white/70 shrink-0">
-                        {fld.count} {fld.count === 1 ? 'track' : 'tracks'}
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : activeTab === 'favorites' ? (
-              <div className="space-y-1">
-                {favoriteTracks.length === 0 ? (
-                  <div className="py-10 text-center space-y-2">
-                    <Heart className="w-10 h-10 mx-auto text-[var(--accent)] opacity-80" />
-                    <p className="text-sm font-semibold text-white">No favorite tracks yet</p>
-                    <p className="text-xs text-white/70">
-                      Tap the heart icon on any track to keep it here.
-                    </p>
-                  </div>
-                ) : (
-                  favoriteTracks.map(renderTrackRow)
-                )}
-              </div>
+              </section>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {genres.length === 0 ? (
-                  <div className="col-span-full py-10 text-center text-sm text-white/70">
-                    No genres found.
-                  </div>
-                ) : (
-                  genres.map((g) => (
-                    <button
-                      key={g.name}
-                      onClick={() =>
-                        setDrillFilter({ type: 'genre', value: g.name, label: g.name })
-                      }
-                      style={{ backgroundColor: 'var(--scenic-surface, rgba(11, 33, 69, 0.52))' }}
-                      className="p-4 rounded-2xl border-0 backdrop-blur-md hover:bg-white/[0.12] text-left space-y-2 transition-colors"
-                    >
-                      <Tag className="w-5 h-5 text-[var(--accent)]" />
-                      <div>
-                        <p className="text-sm font-semibold text-white truncate">{g.name}</p>
-                        <p className="text-xs text-white/70">
-                          {g.count} track{g.count === 1 ? '' : 's'}
-                        </p>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-              </motion.div>
-            </AnimatePresence>
-          </section>
-
-          {/* List Section (Playlists - borderless items over uniform background) */}
-          <section id="playlists-list-section" className="pt-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-baseline gap-2">
-                <h2 className="text-base font-bold text-white">Playlists</h2>
-                <span className="text-xs font-mono-tabular tabular-nums text-white/70">
-                  ({playlists.length})
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setPlaylistModal({ open: true, mode: 'create' })}
-                  aria-label="Create New Playlist"
-                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-[var(--accent)] hover:bg-white/10 transition-colors"
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => {
-                    if (playlists.length > 0) {
-                      setDrillFilter({
-                        type: 'playlist',
-                        value: playlists[0].id,
-                        label: playlists[0].name,
-                      });
-                    } else {
-                      setPlaylistModal({ open: true, mode: 'create' });
-                    }
+              <>
+                {/* 3x2 Grid Section */}
+                <CategorySegmentGrid
+                  activeTab={activeTab}
+                  hasDrillFilter={Boolean(drillFilter)}
+                  counts={{
+                    tracks: audioTracks.length,
+                    albums: albums.length,
+                    artists: artists.length,
+                    genres: genres.length,
+                    folders: folders.length,
+                    favorites: favoriteTracks.length,
                   }}
-                  aria-label="Open Playlists"
-                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+                  onSelectTab={(tab) => {
+                    setActiveTab(tab);
+                    setDrillFilter(null);
+                  }}
+                />
 
-            <div className="space-y-1.5">
-              {playlists.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setPlaylistModal({ open: true, mode: 'create' })}
-                  className="w-full flex items-center gap-3.5 px-3 py-2.5 rounded-2xl border-0 bg-transparent hover:bg-white/[0.06] text-left transition-colors"
-                >
-                  <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
-                    <Plus className="w-5 h-5 text-[var(--accent)]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">No playlists yet</p>
-                    <p className="text-xs text-white/70 truncate">Tap + to create a playlist</p>
-                  </div>
-                </button>
-              ) : (
-                playlists.map((pl) => (
-                  <div
-                    key={pl.id}
-                    className="relative flex items-center justify-between gap-3 px-3 py-2 rounded-2xl border-0 bg-transparent hover:bg-white/[0.06] transition-colors"
-                  >
-                    <button
-                      onClick={() =>
-                        setDrillFilter({ type: 'playlist', value: pl.id, label: pl.name })
-                      }
-                      className="flex flex-1 items-center gap-3.5 min-w-0 text-left min-h-[44px]"
-                    >
-                      <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
-                        <ListMusic className="w-5 h-5 text-[var(--accent)]" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{pl.name}</p>
-                        <p className="text-xs text-white/70">
-                          {pl.trackIds.length} {pl.trackIds.length === 1 ? 'track' : 'tracks'}
-                        </p>
-                      </div>
-                    </button>
+                {/* List Section (Playlists - borderless items over uniform background) */}
+                <section id="playlists-list-section" className="pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-baseline gap-2">
+                      <h2 className="text-base font-bold text-white">Playlists</h2>
+                      <span className="text-xs font-mono-tabular tabular-nums text-white/70">
+                        ({playlists.length})
+                      </span>
+                    </div>
 
-                    <div className="relative shrink-0">
+                    <div className="flex items-center gap-1">
                       <button
-                        onClick={() => setMenuPlaylist(pl)}
-                        aria-label={`Playlist options for ${pl.name}`}
-                        className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/75 hover:text-white hover:bg-white/10"
+                        onClick={() => setPlaylistModal({ open: true, mode: 'create' })}
+                        aria-label="Create New Playlist"
+                        className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-[var(--accent)] hover:bg-white/10 transition-colors"
                       >
-                        <MoreVertical className="w-4 h-4" />
+                        <Plus className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (playlists.length > 0) {
+                            setDrillFilter({
+                              type: 'playlist',
+                              value: playlists[0].id,
+                              label: playlists[0].name,
+                            });
+                          } else {
+                            setPlaylistModal({ open: true, mode: 'create' });
+                          }
+                        }}
+                        aria-label="Open Playlists"
+                        className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                      >
+                        <ChevronRight className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </section>
+
+                  <div className="space-y-1.5">
+                    {playlists.length === 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setPlaylistModal({ open: true, mode: 'create' })}
+                        className="w-full flex items-center gap-3.5 px-3 py-2.5 rounded-2xl border-0 bg-transparent hover:bg-white/[0.06] text-left transition-colors"
+                      >
+                        <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
+                          <Plus className="w-5 h-5 text-[var(--accent)]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">No playlists yet</p>
+                          <p className="text-xs text-white/70 truncate">Tap + to create a playlist</p>
+                        </div>
+                      </button>
+                    ) : (
+                      playlists.map((pl) => (
+                        <div
+                          key={pl.id}
+                          className="relative flex items-center justify-between gap-3 px-3 py-2 rounded-2xl border-0 bg-transparent hover:bg-white/[0.06] transition-colors"
+                        >
+                          <button
+                            onClick={() =>
+                              setDrillFilter({ type: 'playlist', value: pl.id, label: pl.name })
+                            }
+                            className="flex flex-1 items-center gap-3.5 min-w-0 text-left min-h-[44px]"
+                          >
+                            <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
+                              <ListMusic className="w-5 h-5 text-[var(--accent)]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white truncate">{pl.name}</p>
+                              <p className="text-xs text-white/70">
+                                {pl.trackIds.length} {pl.trackIds.length === 1 ? 'track' : 'tracks'}
+                              </p>
+                            </div>
+                          </button>
+
+                          <div className="relative shrink-0">
+                            <button
+                              onClick={() => setMenuPlaylist(pl)}
+                              aria-label={`Playlist options for ${pl.name}`}
+                              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/75 hover:text-white hover:bg-white/10"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </>
+            )
+          ) : (
+            <section aria-label="Category Page" className="space-y-4">
+              {/* Page Sub-Header Bar (Count + Play All) */}
+              <div className="flex items-center justify-between gap-4 pb-2">
+                <p className="text-xs font-mono-tabular text-white/70">
+                  {drillFilter
+                    ? `${drillTracks.length} track${drillTracks.length === 1 ? '' : 's'}`
+                    : activeTab === 'tracks'
+                      ? `${audioTracks.length} track${audioTracks.length === 1 ? '' : 's'}`
+                      : activeTab === 'albums'
+                        ? `${albums.length} album${albums.length === 1 ? '' : 's'}`
+                        : activeTab === 'artists'
+                          ? `${artists.length} artist${artists.length === 1 ? '' : 's'}`
+                          : activeTab === 'folders'
+                            ? `${folders.length} folder${folders.length === 1 ? '' : 's'}`
+                            : activeTab === 'favorites'
+                              ? `${favoriteTracks.length} favorite${favoriteTracks.length === 1 ? '' : 's'}`
+                              : `${genres.length} genre${genres.length === 1 ? '' : 's'}`}
+                </p>
+
+                {((drillFilter && drillTracks.length > 0) ||
+                  (!drillFilter && activeTab === 'tracks' && audioTracks.length > 0) ||
+                  (!drillFilter && activeTab === 'favorites' && favoriteTracks.length > 0)) && (
+                  <button
+                    onClick={() => {
+                      const list = drillFilter
+                        ? drillTracks
+                        : activeTab === 'favorites'
+                          ? favoriteTracks
+                          : audioTracks;
+                      if (list.length > 0) void playTrack(list[0], list);
+                    }}
+                    className="min-h-[38px] px-4 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold flex items-center gap-1.5 shrink-0"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>Play All</span>
+                  </button>
+                )}
+              </div>
+
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={drillFilter ? `drill-${drillFilter.type}-${drillFilter.value}` : activeTab}
+                  initial={{ opacity: 0, x: 14 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  {drillFilter ? (
+                    <div className="space-y-1">
+                      {drillTracks.length === 0 ? (
+                        <p className="py-12 text-center text-sm text-white/70">
+                          No tracks in this selection.
+                        </p>
+                      ) : (
+                        drillTracks.map(renderTrackRow)
+                      )}
+                    </div>
+                  ) : activeTab === 'tracks' ? (
+                    <div className="space-y-1">
+                      {audioTracks.length === 0 ? (
+                        <div className="py-12 text-center space-y-4">
+                          <Music2 className="w-11 h-11 mx-auto text-[var(--accent)] opacity-90" />
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold text-white">No audio tracks found</p>
+                            <p className="text-xs text-white/70 max-w-xs mx-auto">
+                              Grant storage permission and scan your device storage for MP3, WAV, M4A, FLAC, and AAC files.
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSettings((prev) => ({ ...prev, autoSyncPermission: true }));
+                              const bridge = (window as unknown as {
+                                AndroidBridge?: { requestPermissionAndScan?: () => void };
+                              }).AndroidBridge;
+                              if (bridge && typeof bridge.requestPermissionAndScan === 'function') {
+                                bridge.requestPermissionAndScan();
+                              } else {
+                                scanDeviceStorage(true);
+                              }
+                            }}
+                            className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold shadow-lg active:scale-95 transition-transform"
+                          >
+                            Rescan / Grant Permission
+                          </button>
+                        </div>
+                      ) : (
+                        audioTracks.map(renderTrackRow)
+                      )}
+                    </div>
+                  ) : activeTab === 'albums' ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+                      {albums.length === 0 ? (
+                        <div className="col-span-full py-12 text-center text-sm text-white/70">
+                          No albums found.
+                        </div>
+                      ) : (
+                        albums.map((alb) => (
+                          <button
+                            key={alb.name}
+                            onClick={() =>
+                              setDrillFilter({ type: 'album', value: alb.name, label: alb.name })
+                            }
+                            style={{ backgroundColor: 'var(--scenic-surface, rgba(11, 33, 69, 0.52))' }}
+                            className="group text-left rounded-2xl border-0 backdrop-blur-md p-3 hover:bg-white/[0.12] transition-colors"
+                          >
+                            <div className="aspect-square rounded-xl overflow-hidden bg-white/10 mb-3">
+                              <CoverImage
+                                src={alb.coverUrl}
+                                alt={alb.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                fallback={
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Disc3 className="w-10 h-10 text-[var(--accent)] opacity-80" />
+                                  </div>
+                                }
+                              />
+                            </div>
+                            <p className="text-sm font-semibold text-white truncate">{alb.name}</p>
+                            <p className="text-xs text-white/70 truncate">
+                              {alb.artist} · {alb.count} tracks
+                            </p>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  ) : activeTab === 'artists' ? (
+                    <div className="space-y-1">
+                      {artists.length === 0 ? (
+                        <div className="py-12 text-center text-sm text-white/70">
+                          No artists found.
+                        </div>
+                      ) : (
+                        artists.map((art) => (
+                          <button
+                            key={art.name}
+                            onClick={() =>
+                              setDrillFilter({ type: 'artist', value: art.name, label: art.name })
+                            }
+                            className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-white/[0.08] rounded-xl border-0 text-left min-h-[56px]"
+                          >
+                            <CoverImage
+                              src={art.coverUrl}
+                              alt={art.name}
+                              className="w-11 h-11 rounded-full object-cover shrink-0"
+                              fallback={
+                                <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
+                                  <User className="w-5 h-5 text-[var(--accent)]" />
+                                </div>
+                              }
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white truncate">{art.name}</p>
+                              <p className="text-xs text-white/70">
+                                {art.albums.size} album{art.albums.size === 1 ? '' : 's'} ·{' '}
+                                {art.trackCount} tracks
+                              </p>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  ) : activeTab === 'folders' ? (
+                    <div className="space-y-1">
+                      {folders.length === 0 ? (
+                        <div className="py-12 text-center text-sm text-white/70">
+                          No folders found.
+                        </div>
+                      ) : (
+                        folders.map((fld) => (
+                          <button
+                            key={fld.path}
+                            onClick={() =>
+                              setDrillFilter({ type: 'folder', value: fld.path, label: fld.name })
+                            }
+                            className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-white/[0.08] rounded-xl border-0 text-left min-h-[56px]"
+                          >
+                            <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
+                              <Folder className="w-5 h-5 text-[var(--accent)]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white truncate">{fld.name}</p>
+                            </div>
+                            <span className="text-xs font-mono-tabular text-white/70 shrink-0">
+                              {fld.count} {fld.count === 1 ? 'track' : 'tracks'}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  ) : activeTab === 'favorites' ? (
+                    <div className="space-y-1">
+                      {favoriteTracks.length === 0 ? (
+                        <div className="py-12 text-center space-y-2">
+                          <Heart className="w-10 h-10 mx-auto text-[var(--accent)] opacity-80" />
+                          <p className="text-sm font-semibold text-white">No favorite tracks yet</p>
+                          <p className="text-xs text-white/70">
+                            Tap the heart icon on any track to keep it here.
+                          </p>
+                        </div>
+                      ) : (
+                        favoriteTracks.map(renderTrackRow)
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {genres.length === 0 ? (
+                        <div className="col-span-full py-12 text-center text-sm text-white/70">
+                          No genres found.
+                        </div>
+                      ) : (
+                        genres.map((g) => (
+                          <button
+                            key={g.name}
+                            onClick={() =>
+                              setDrillFilter({ type: 'genre', value: g.name, label: g.name })
+                            }
+                            style={{ backgroundColor: 'var(--scenic-surface, rgba(11, 33, 69, 0.52))' }}
+                            className="p-4 rounded-2xl border-0 backdrop-blur-md hover:bg-white/[0.12] text-left space-y-2 transition-colors"
+                          >
+                            <Tag className="w-5 h-5 text-[var(--accent)]" />
+                            <div>
+                              <p className="text-sm font-semibold text-white truncate">{g.name}</p>
+                              <p className="text-xs text-white/70">
+                                {g.count} track{g.count === 1 ? '' : 's'}
+                              </p>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </section>
+          )}
         </div>
 
         {/* Desktop Right Column: Live Now Playing Studio Deck */}

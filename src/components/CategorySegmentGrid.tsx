@@ -4,7 +4,7 @@ import { Disc3, Folder, Heart, Music2, Tag, User } from 'lucide-react';
 import { LibraryTab } from '../types/music';
 
 interface CategorySegmentGridProps {
-  activeTab: LibraryTab;
+  activeTab: LibraryTab | null;
   hasDrillFilter: boolean;
   counts: {
     tracks: number;

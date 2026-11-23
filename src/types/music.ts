@@ -1,4 +1,4 @@
-export type LibraryTab = 'tracks' | 'albums' | 'artists' | 'genres' | 'folders' | 'favorites';
+export type LibraryTab = 'playlists' | 'folders' | 'tracks' | 'albums' | 'artists' | 'genres' | 'favorites';
 
 export type RepeatMode = 'off' | 'one' | 'all';
 
