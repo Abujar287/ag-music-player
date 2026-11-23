@@ -79,6 +79,33 @@ const STORAGE_KEYS = {
   equalizer: 'ag_music_equalizer_v1',
 };
 
+function getTrackFileName(track: Track): string {
+  const raw = track.filePath || track.audioUrl || '';
+  if (!raw) return '';
+  const clean = raw.split('?')[0];
+  const segments = clean.split(/[/\\]/).filter(Boolean);
+  return segments[segments.length - 1] || '';
+}
+
+function matchesSearchQuery(track: Track, rawQuery: string): boolean {
+  const trimmed = rawQuery.trim().toLowerCase();
+  if (!trimmed) return true;
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  const fileName = getTrackFileName(track);
+  const haystack = [
+    track.title,
+    fileName,
+    track.filePath ?? '',
+    track.folder,
+    track.artist,
+    track.album,
+    track.genre,
+  ]
+    .join(' ')
+    .toLowerCase();
+  return tokens.every((tok) => haystack.includes(tok));
+}
+
 function loadInitialTracks(): Track[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.tracks);
@@ -320,7 +347,15 @@ export default function App() {
         return merged;
       });
 
-      setQueue((prevQueue) => (prevQueue.length === 0 ? incoming : prevQueue));
+      setQueue((prevQueue) => {
+        if (prevQueue.length > 0) return prevQueue;
+        const filtered = settings.filterShortClips
+          ? incoming.filter(
+              (t) => t.durationSec >= settings.minDurationSec && t.sizeKb >= settings.minSizeKb
+            )
+          : incoming;
+        return filtered.length > 0 ? filtered : incoming;
+      });
       setCurrentTrackId((prevId) => prevId || incoming[0]?.id || '');
 
       if (isManual) {
@@ -331,7 +366,7 @@ export default function App() {
         );
       }
     },
-    [showToast]
+    [settings.filterShortClips, settings.minDurationSec, settings.minSizeKb, showToast]
   );
 
   const scanDeviceStorage = useCallback(
@@ -537,10 +572,9 @@ export default function App() {
     audioEngine.setFadeOnPause(settings.fadeOnPause);
   }, [settings.fadeOnPause]);
 
-  // Filtered tracks respecting auto-sync permission, short-clip filter, hidden folders, and search query
+  // Filtered tracks respecting auto-sync permission, short-clip filter, hidden folders, and file/metadata search
   const visibleTracks = useMemo(() => {
     if (!settings.autoSyncPermission) return [];
-    const q = searchQuery.trim().toLowerCase();
     return tracks.filter((t) => {
       if (settings.filterShortClips) {
         if (t.durationSec < settings.minDurationSec || t.sizeKb < settings.minSizeKb) {
@@ -548,14 +582,7 @@ export default function App() {
         }
       }
       if (settings.hiddenFolders.includes(t.folder)) return false;
-      if (!q) return true;
-      return (
-        t.title.toLowerCase().includes(q) ||
-        t.artist.toLowerCase().includes(q) ||
-        t.album.toLowerCase().includes(q) ||
-        t.genre.toLowerCase().includes(q) ||
-        t.folder.toLowerCase().includes(q)
-      );
+      return matchesSearchQuery(t, searchQuery);
     });
   }, [
     tracks,
@@ -592,7 +619,7 @@ export default function App() {
       string,
       { name: string; artist: string; coverUrl: string | null; count: number }
     >();
-    visibleTracks.forEach((t) => {
+    audioTracks.forEach((t) => {
       const existing = map.get(t.album);
       if (existing) {
         existing.count += 1;
@@ -602,14 +629,14 @@ export default function App() {
       }
     });
     return Array.from(map.values());
-  }, [visibleTracks]);
+  }, [audioTracks]);
 
   const artists = useMemo(() => {
     const map = new Map<
       string,
       { name: string; trackCount: number; albums: Set<string>; coverUrl: string | null }
     >();
-    visibleTracks.forEach((t) => {
+    audioTracks.forEach((t) => {
       const existing = map.get(t.artist);
       if (existing) {
         existing.trackCount += 1;
@@ -625,11 +652,11 @@ export default function App() {
       }
     });
     return Array.from(map.values());
-  }, [visibleTracks]);
+  }, [audioTracks]);
 
   const folders = useMemo(() => {
     const map = new Map<string, number>();
-    visibleTracks.forEach((t) => {
+    audioTracks.forEach((t) => {
       map.set(t.folder, (map.get(t.folder) ?? 0) + 1);
     });
     return Array.from(map.entries()).map(([path, count]) => {
@@ -637,35 +664,35 @@ export default function App() {
       const name = segments[segments.length - 1] || path;
       return { name, path, count };
     });
-  }, [visibleTracks]);
+  }, [audioTracks]);
 
   const genres = useMemo(() => {
     const map = new Map<string, number>();
-    visibleTracks.forEach((t) => {
+    audioTracks.forEach((t) => {
       map.set(t.genre, (map.get(t.genre) ?? 0) + 1);
     });
     return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
-  }, [visibleTracks]);
+  }, [audioTracks]);
 
   const drillTracks = useMemo(() => {
     if (!drillFilter) return [];
     if (drillFilter.type === 'album')
-      return visibleTracks.filter((t) => t.album === drillFilter.value);
+      return audioTracks.filter((t) => t.album === drillFilter.value);
     if (drillFilter.type === 'artist')
-      return visibleTracks.filter((t) => t.artist === drillFilter.value);
+      return audioTracks.filter((t) => t.artist === drillFilter.value);
     if (drillFilter.type === 'folder')
-      return visibleTracks.filter((t) => t.folder === drillFilter.value);
+      return audioTracks.filter((t) => t.folder === drillFilter.value);
     if (drillFilter.type === 'genre')
-      return visibleTracks.filter((t) => t.genre === drillFilter.value);
+      return audioTracks.filter((t) => t.genre === drillFilter.value);
     if (drillFilter.type === 'playlist') {
       const pl = playlists.find((p) => p.id === drillFilter.value);
       if (!pl) return [];
       return pl.trackIds
         .map((id) => tracks.find((t) => t.id === id))
-        .filter((t): t is Track => Boolean(t));
+        .filter((t): t is Track => Boolean(t && matchesSearchQuery(t, searchQuery)));
     }
     return [];
-  }, [drillFilter, visibleTracks, playlists, tracks]);
+  }, [drillFilter, audioTracks, playlists, tracks, searchQuery]);
 
   // Playback handlers
   const playTrack = useCallback(
@@ -1213,27 +1240,28 @@ export default function App() {
     });
   };
 
-  const renderTrackRow = (track: Track) => {
+  const renderTrackRow = (track: Track, showFileSubtitle = false) => {
     const active = currentTrack?.id === track.id;
+    const fileName = getTrackFileName(track);
     return (
       <div
         key={track.id}
-        className={`group relative flex items-center gap-3.5 px-3 py-2.5 rounded-xl border-0 transition-colors ${
-          active ? 'bg-[var(--accent-soft)]' : 'hover:bg-white/[0.08]'
+        className={`relative flex items-center gap-3 px-2.5 py-2 rounded-xl border-0 transition-colors ${
+          active ? 'bg-[var(--accent-soft)]' : 'hover:bg-white/[0.07]'
         }`}
       >
         <button
-          onClick={() => void playTrack(track, drillFilter ? drillTracks : visibleTracks)}
-          className="flex flex-1 items-center gap-3.5 min-w-0 text-left min-h-[44px]"
+          onClick={() => void playTrack(track, drillFilter ? drillTracks : audioTracks)}
+          className="flex flex-1 items-center gap-3 min-w-0 text-left min-h-[44px]"
         >
           <CoverImage
             src={track.coverUrl}
             alt={track.album}
-            className="w-12 h-12 rounded-xl object-cover shrink-0"
+            className="w-11 h-11 rounded-xl object-cover shrink-0"
             fallback={
-              <div className="w-12 h-12 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
                 <Disc3
-                  className={`w-6 h-6 ${active ? 'text-[var(--accent)]' : 'text-[var(--accent)]/80'}`}
+                  className={`w-5 h-5 ${active ? 'text-[var(--accent)]' : 'text-[var(--accent)]/85'}`}
                 />
               </div>
             }
@@ -1243,12 +1271,14 @@ export default function App() {
             <p className={`text-sm font-semibold truncate ${active ? 'text-[var(--accent)]' : 'text-white'}`}>
               {track.title}
             </p>
-            <p className="text-xs text-white/70 truncate">
-              {track.artist} · {track.album}
+            <p className="text-xs text-white/65 truncate">
+              {showFileSubtitle && fileName
+                ? `${fileName} · ${track.artist}`
+                : `${track.artist} · ${track.album}`}
             </p>
           </div>
 
-          <span className="text-xs font-mono-tabular tabular-nums text-white/70 shrink-0">
+          <span className="text-xs font-mono-tabular tabular-nums text-white/65 shrink-0">
             {formatTime(track.durationSec)}
           </span>
         </button>
@@ -1258,7 +1288,7 @@ export default function App() {
           <button
             onClick={() => setMenuTrack(track)}
             aria-label={`Options for ${track.title}`}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/75 hover:text-white hover:bg-white/10"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/70 hover:text-white hover:bg-white/10"
           >
             <MoreVertical className="w-4 h-4" />
           </button>
@@ -1275,8 +1305,8 @@ export default function App() {
 
       {/* Top Header */}
       <header className="sticky top-0 z-30 bg-transparent border-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             {activeTab !== null || drillFilter ? (
               <button
                 onClick={() => {
@@ -1305,7 +1335,7 @@ export default function App() {
             )}
 
             {!searchOpen && (
-              <h1 className="text-base sm:text-lg font-bold tracking-wide text-white truncate whitespace-nowrap">
+              <h1 className="text-base sm:text-lg font-semibold text-white truncate whitespace-nowrap">
                 {drillFilter
                   ? drillFilter.label
                   : activeTab === 'tracks'
@@ -1327,23 +1357,38 @@ export default function App() {
 
           {searchOpen ? (
             <div className="flex-1 flex items-center gap-2 max-w-xl">
-              <input
-                type="text"
-                autoFocus
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search tracks, albums, artists..."
-                className="w-full px-3.5 py-2 rounded-xl bg-white/10 border border-white/20 text-sm text-white placeholder:text-white/55 focus:outline-none focus:border-[var(--accent)]"
-              />
+              <div className="relative flex-1 flex items-center">
+                <Search className="w-4 h-4 text-white/55 absolute left-3 pointer-events-none" />
+                <input
+                  type="search"
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search files, songs, folders..."
+                  aria-label="Search audio files"
+                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-white/10 border border-white/15 text-sm text-white placeholder:text-white/50 focus:outline-none focus:border-[var(--accent)]"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Clear search text"
+                    className="absolute right-2 p-1 rounded-full text-white/60 hover:text-white hover:bg-white/10"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
               <button
+                type="button"
                 onClick={() => {
                   setSearchOpen(false);
                   setSearchQuery('');
                 }}
                 aria-label="Close Search"
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 shrink-0"
+                className="min-h-[44px] px-2.5 flex items-center justify-center rounded-xl text-xs font-medium text-white/85 hover:text-white hover:bg-white/10 shrink-0"
               >
-                <X className="w-5 h-5" />
+                Cancel
               </button>
             </div>
           ) : (
@@ -1459,137 +1504,150 @@ export default function App() {
             </div>
           )}
 
-          {/* ENTRY PAGE vs DEDICATED CATEGORY PAGE */}
-          {activeTab === null && !drillFilter ? (
-            searchQuery.trim().length > 0 ? (
-              <section aria-label="Search Results" className="space-y-3">
-                <p className="text-xs font-medium text-white/65 px-1">
-                  Search Results ({audioTracks.length})
+          {/* SEARCH FILES OR ENTRY PAGE OR DEDICATED CATEGORY PAGE */}
+          {searchQuery.trim().length > 0 ? (
+            <section aria-label="Search Files" className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <p className="text-xs font-medium text-white/70">
+                  Matching Files ({audioTracks.length})
                 </p>
-                {audioTracks.length === 0 ? (
-                  <p className="py-10 text-center text-sm text-white/70">
-                    No matching audio files found.
-                  </p>
-                ) : (
-                  <div className="space-y-1">{audioTracks.map(renderTrackRow)}</div>
+                {audioTracks.length > 0 && (
+                  <button
+                    onClick={() => void playTrack(audioTracks[0], audioTracks)}
+                    className="min-h-[34px] px-3.5 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold flex items-center gap-1.5"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>Play All</span>
+                  </button>
                 )}
-              </section>
-            ) : (
-              <>
-                {/* 3x2 Grid Section */}
-                <CategorySegmentGrid
-                  activeTab={activeTab}
-                  hasDrillFilter={Boolean(drillFilter)}
-                  counts={{
-                    tracks: audioTracks.length,
-                    albums: albums.length,
-                    artists: artists.length,
-                    genres: genres.length,
-                    folders: folders.length,
-                    favorites: favoriteTracks.length,
-                  }}
-                  onSelectTab={(tab) => {
-                    setActiveTab(tab);
-                    setDrillFilter(null);
-                  }}
-                />
+              </div>
+              {audioTracks.length === 0 ? (
+                <div className="py-12 text-center space-y-2">
+                  <FileAudio className="w-9 h-9 mx-auto text-white/40" />
+                  <p className="text-sm font-medium text-white">No matching audio files</p>
+                  <p className="text-xs text-white/60">
+                    Try another file name, song title, artist, or folder name.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1">{audioTracks.map((t) => renderTrackRow(t, true))}</div>
+              )}
+            </section>
+          ) : activeTab === null && !drillFilter ? (
+            <>
+              {/* 3x2 Grid Section */}
+              <CategorySegmentGrid
+                activeTab={activeTab}
+                hasDrillFilter={Boolean(drillFilter)}
+                counts={{
+                  tracks: audioTracks.length,
+                  albums: albums.length,
+                  artists: artists.length,
+                  genres: genres.length,
+                  folders: folders.length,
+                  favorites: favoriteTracks.length,
+                }}
+                onSelectTab={(tab) => {
+                  setActiveTab(tab);
+                  setDrillFilter(null);
+                }}
+              />
 
-                {/* List Section (Playlists - borderless items over uniform background) */}
-                <section id="playlists-list-section" className="pt-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-baseline gap-2">
-                      <h2 className="text-base font-bold text-white">Playlists</h2>
-                      <span className="text-xs font-mono-tabular tabular-nums text-white/70">
-                        ({playlists.length})
-                      </span>
-                    </div>
+              {/* List Section (Playlists - borderless items over uniform background) */}
+              <section id="playlists-list-section" className="pt-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-baseline gap-2">
+                    <h2 className="text-base font-semibold text-white">Playlists</h2>
+                    <span className="text-xs font-mono-tabular tabular-nums text-white/65">
+                      ({playlists.length})
+                    </span>
+                  </div>
 
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setPlaylistModal({ open: true, mode: 'create' })}
-                        aria-label="Create New Playlist"
-                        className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-[var(--accent)] hover:bg-white/10 transition-colors"
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setPlaylistModal({ open: true, mode: 'create' })}
+                      aria-label="Create New Playlist"
+                      className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-[var(--accent)] hover:bg-white/10 transition-colors"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (playlists.length > 0) {
+                          setDrillFilter({
+                            type: 'playlist',
+                            value: playlists[0].id,
+                            label: playlists[0].name,
+                          });
+                        } else {
+                          setPlaylistModal({ open: true, mode: 'create' });
+                        }
+                      }}
+                      aria-label="Open Playlists"
+                      className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-white/75 hover:text-white hover:bg-white/10 transition-colors"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  {playlists.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setPlaylistModal({ open: true, mode: 'create' })}
+                      className="w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl border-0 bg-transparent hover:bg-white/[0.06] text-left transition-colors"
+                    >
+                      <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
+                        <Plus className="w-5 h-5 text-[var(--accent)]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">No playlists yet</p>
+                        <p className="text-xs text-white/65 truncate">Tap + to create a playlist</p>
+                      </div>
+                    </button>
+                  ) : (
+                    playlists.map((pl) => (
+                      <div
+                        key={pl.id}
+                        className="relative flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl border-0 bg-transparent hover:bg-white/[0.06] transition-colors"
                       >
-                        <Plus className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (playlists.length > 0) {
-                            setDrillFilter({
-                              type: 'playlist',
-                              value: playlists[0].id,
-                              label: playlists[0].name,
-                            });
-                          } else {
-                            setPlaylistModal({ open: true, mode: 'create' });
+                        <button
+                          onClick={() =>
+                            setDrillFilter({ type: 'playlist', value: pl.id, label: pl.name })
                           }
-                        }}
-                        aria-label="Open Playlists"
-                        className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-                      >
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {playlists.length === 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => setPlaylistModal({ open: true, mode: 'create' })}
-                        className="w-full flex items-center gap-3.5 px-3 py-2.5 rounded-2xl border-0 bg-transparent hover:bg-white/[0.06] text-left transition-colors"
-                      >
-                        <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
-                          <Plus className="w-5 h-5 text-[var(--accent)]" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-white truncate">No playlists yet</p>
-                          <p className="text-xs text-white/70 truncate">Tap + to create a playlist</p>
-                        </div>
-                      </button>
-                    ) : (
-                      playlists.map((pl) => (
-                        <div
-                          key={pl.id}
-                          className="relative flex items-center justify-between gap-3 px-3 py-2 rounded-2xl border-0 bg-transparent hover:bg-white/[0.06] transition-colors"
+                          className="flex flex-1 items-center gap-3 min-w-0 text-left min-h-[44px]"
                         >
-                          <button
-                            onClick={() =>
-                              setDrillFilter({ type: 'playlist', value: pl.id, label: pl.name })
-                            }
-                            className="flex flex-1 items-center gap-3.5 min-w-0 text-left min-h-[44px]"
-                          >
-                            <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
-                              <ListMusic className="w-5 h-5 text-[var(--accent)]" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-white truncate">{pl.name}</p>
-                              <p className="text-xs text-white/70">
-                                {pl.trackIds.length} {pl.trackIds.length === 1 ? 'track' : 'tracks'}
-                              </p>
-                            </div>
-                          </button>
-
-                          <div className="relative shrink-0">
-                            <button
-                              onClick={() => setMenuPlaylist(pl)}
-                              aria-label={`Playlist options for ${pl.name}`}
-                              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/75 hover:text-white hover:bg-white/10"
-                            >
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
+                          <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
+                            <ListMusic className="w-5 h-5 text-[var(--accent)]" />
                           </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{pl.name}</p>
+                            <p className="text-xs text-white/65">
+                              {pl.trackIds.length} {pl.trackIds.length === 1 ? 'track' : 'tracks'}
+                            </p>
+                          </div>
+                        </button>
+
+                        <div className="relative shrink-0">
+                          <button
+                            onClick={() => setMenuPlaylist(pl)}
+                            aria-label={`Playlist options for ${pl.name}`}
+                            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/70 hover:text-white hover:bg-white/10"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
                         </div>
-                      ))
-                    )}
-                  </div>
-                </section>
-              </>
-            )
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+            </>
           ) : (
-            <section aria-label="Category Page" className="space-y-4">
+            <section aria-label="Category Page" className="space-y-3.5">
               {/* Page Sub-Header Bar (Count + Play All) */}
-              <div className="flex items-center justify-between gap-4 pb-2">
+              <div className="flex items-center justify-between gap-4 pb-1 px-1">
                 <p className="text-xs font-mono-tabular text-white/70">
                   {drillFilter
                     ? `${drillTracks.length} track${drillTracks.length === 1 ? '' : 's'}`
@@ -1618,7 +1676,7 @@ export default function App() {
                           : audioTracks;
                       if (list.length > 0) void playTrack(list[0], list);
                     }}
-                    className="min-h-[38px] px-4 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold flex items-center gap-1.5 shrink-0"
+                    className="min-h-[36px] px-4 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold flex items-center gap-1.5 shrink-0"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
                     <span>Play All</span>
@@ -1629,19 +1687,19 @@ export default function App() {
               <AnimatePresence mode="wait">
                 <motion.div
                   key={drillFilter ? `drill-${drillFilter.type}-${drillFilter.value}` : activeTab}
-                  initial={{ opacity: 0, x: 14 }}
+                  initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                  exit={{ opacity: 0, x: -8 }}
+                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
                 >
                   {drillFilter ? (
                     <div className="space-y-1">
                       {drillTracks.length === 0 ? (
-                        <p className="py-12 text-center text-sm text-white/70">
+                        <p className="py-12 text-center text-sm text-white/65">
                           No tracks in this selection.
                         </p>
                       ) : (
-                        drillTracks.map(renderTrackRow)
+                        drillTracks.map((t) => renderTrackRow(t))
                       )}
                     </div>
                   ) : activeTab === 'tracks' ? (
@@ -1651,7 +1709,7 @@ export default function App() {
                           <Music2 className="w-11 h-11 mx-auto text-[var(--accent)] opacity-90" />
                           <div className="space-y-1">
                             <p className="text-sm font-semibold text-white">No audio tracks found</p>
-                            <p className="text-xs text-white/70 max-w-xs mx-auto">
+                            <p className="text-xs text-white/65 max-w-xs mx-auto">
                               Grant storage permission and scan your device storage for MP3, WAV, M4A, FLAC, and AAC files.
                             </p>
                           </div>
@@ -1673,13 +1731,13 @@ export default function App() {
                           </button>
                         </div>
                       ) : (
-                        audioTracks.map(renderTrackRow)
+                        audioTracks.map((t) => renderTrackRow(t))
                       )}
                     </div>
                   ) : activeTab === 'albums' ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
                       {albums.length === 0 ? (
-                        <div className="col-span-full py-12 text-center text-sm text-white/70">
+                        <div className="col-span-full py-12 text-center text-sm text-white/65">
                           No albums found.
                         </div>
                       ) : (
@@ -1692,11 +1750,11 @@ export default function App() {
                             style={{ backgroundColor: 'var(--scenic-surface, rgba(11, 33, 69, 0.52))' }}
                             className="group text-left rounded-2xl border-0 backdrop-blur-md p-3 hover:bg-white/[0.12] transition-colors"
                           >
-                            <div className="aspect-square rounded-xl overflow-hidden bg-white/10 mb-3">
+                            <div className="aspect-square rounded-xl overflow-hidden bg-white/10 mb-2.5">
                               <CoverImage
                                 src={alb.coverUrl}
                                 alt={alb.name}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                className="w-full h-full object-cover"
                                 fallback={
                                   <div className="w-full h-full flex items-center justify-center">
                                     <Disc3 className="w-10 h-10 text-[var(--accent)] opacity-80" />
@@ -1705,7 +1763,7 @@ export default function App() {
                               />
                             </div>
                             <p className="text-sm font-semibold text-white truncate">{alb.name}</p>
-                            <p className="text-xs text-white/70 truncate">
+                            <p className="text-xs text-white/65 truncate">
                               {alb.artist} · {alb.count} tracks
                             </p>
                           </button>
@@ -1715,7 +1773,7 @@ export default function App() {
                   ) : activeTab === 'artists' ? (
                     <div className="space-y-1">
                       {artists.length === 0 ? (
-                        <div className="py-12 text-center text-sm text-white/70">
+                        <div className="py-12 text-center text-sm text-white/65">
                           No artists found.
                         </div>
                       ) : (
@@ -1725,7 +1783,7 @@ export default function App() {
                             onClick={() =>
                               setDrillFilter({ type: 'artist', value: art.name, label: art.name })
                             }
-                            className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-white/[0.08] rounded-xl border-0 text-left min-h-[56px]"
+                            className="w-full px-3 py-2.5 flex items-center gap-3.5 hover:bg-white/[0.07] rounded-xl border-0 text-left min-h-[56px]"
                           >
                             <CoverImage
                               src={art.coverUrl}
@@ -1739,7 +1797,7 @@ export default function App() {
                             />
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-white truncate">{art.name}</p>
-                              <p className="text-xs text-white/70">
+                              <p className="text-xs text-white/65">
                                 {art.albums.size} album{art.albums.size === 1 ? '' : 's'} ·{' '}
                                 {art.trackCount} tracks
                               </p>
@@ -1751,7 +1809,7 @@ export default function App() {
                   ) : activeTab === 'folders' ? (
                     <div className="space-y-1">
                       {folders.length === 0 ? (
-                        <div className="py-12 text-center text-sm text-white/70">
+                        <div className="py-12 text-center text-sm text-white/65">
                           No folders found.
                         </div>
                       ) : (
@@ -1761,7 +1819,7 @@ export default function App() {
                             onClick={() =>
                               setDrillFilter({ type: 'folder', value: fld.path, label: fld.name })
                             }
-                            className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-white/[0.08] rounded-xl border-0 text-left min-h-[56px]"
+                            className="w-full px-3 py-2.5 flex items-center gap-3.5 hover:bg-white/[0.07] rounded-xl border-0 text-left min-h-[56px]"
                           >
                             <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
                               <Folder className="w-5 h-5 text-[var(--accent)]" />
@@ -1769,7 +1827,7 @@ export default function App() {
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-white truncate">{fld.name}</p>
                             </div>
-                            <span className="text-xs font-mono-tabular text-white/70 shrink-0">
+                            <span className="text-xs font-mono-tabular text-white/65 shrink-0">
                               {fld.count} {fld.count === 1 ? 'track' : 'tracks'}
                             </span>
                           </button>
@@ -1782,12 +1840,12 @@ export default function App() {
                         <div className="py-12 text-center space-y-2">
                           <Heart className="w-10 h-10 mx-auto text-[var(--accent)] opacity-80" />
                           <p className="text-sm font-semibold text-white">No favorite tracks yet</p>
-                          <p className="text-xs text-white/70">
+                          <p className="text-xs text-white/65">
                             Tap the heart icon on any track to keep it here.
                           </p>
                         </div>
                       ) : (
-                        favoriteTracks.map(renderTrackRow)
+                        favoriteTracks.map((t) => renderTrackRow(t))
                       )}
                     </div>
                   ) : (
@@ -1861,17 +1919,10 @@ export default function App() {
               </div>
             </div>
 
-            {/* Marquee Song Title */}
-            <div className="text-center space-y-1 overflow-hidden">
-              <div className="overflow-hidden whitespace-nowrap">
-                <div className="marquee-track">
-                  <span className="text-base font-bold text-white px-6">{currentTrack.title}</span>
-                  <span className="text-base font-bold text-white px-6" aria-hidden="true">
-                    {currentTrack.title}
-                  </span>
-                </div>
-              </div>
-              <p className="text-xs text-white/70 truncate">
+            {/* Clean Static Track Title */}
+            <div className="text-center space-y-1 px-2">
+              <p className="text-base font-semibold text-white truncate">{currentTrack.title}</p>
+              <p className="text-xs text-white/65 truncate">
                 {currentTrack.artist} · {currentTrack.album}
               </p>
             </div>
@@ -2319,7 +2370,7 @@ export default function App() {
                 className="w-full min-h-[44px] px-3.5 py-2 rounded-xl flex items-center gap-3.5 hover:bg-white/[0.08] text-left text-white/85 transition-colors"
               >
                 <Edit3 className="w-4 h-4 text-white/65 shrink-0" />
-                <span>Edit Tag / Info</span>
+                <span>Edit Audio Tags</span>
               </button>
               <button
                 onClick={() => {

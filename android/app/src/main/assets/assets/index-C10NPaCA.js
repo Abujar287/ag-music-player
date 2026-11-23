@@ -11680,21 +11680,6 @@ var CircleCheck = createLucideIcon("circle-check", [["circle", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var Clock = createLucideIcon("clock", [["path", {
-	d: "M12 6v6l4 2",
-	key: "mmk7yg"
-}], ["circle", {
-	cx: "12",
-	cy: "12",
-	r: "10",
-	key: "1mglay"
-}]]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
 var Disc3 = createLucideIcon("disc-3", [
 	["circle", {
 		cx: "12",
@@ -12041,6 +12026,26 @@ var Maximize2 = createLucideIcon("maximize-2", [
 	["path", {
 		d: "M9 21H3v-6",
 		key: "wtvkvv"
+	}]
+]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var Menu = createLucideIcon("menu", [
+	["path", {
+		d: "M4 5h16",
+		key: "1tepv9"
+	}],
+	["path", {
+		d: "M4 12h16",
+		key: "1lakjw"
+	}],
+	["path", {
+		d: "M4 19h16",
+		key: "1djgab"
 	}]
 ]);
 /**
@@ -12454,6 +12459,22 @@ var Sparkles = createLucideIcon("sparkles", [
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var Tag = createLucideIcon("tag", [["path", {
+	d: "M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z",
+	key: "vktsd0"
+}], ["circle", {
+	cx: "7.5",
+	cy: "7.5",
+	r: ".5",
+	fill: "currentColor",
+	key: "kqv944"
+}]]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var Trash2 = createLucideIcon("trash-2", [
 	["path", {
 		d: "M10 11v6",
@@ -12476,19 +12497,6 @@ var Trash2 = createLucideIcon("trash-2", [
 		key: "e791ji"
 	}]
 ]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var TrendingUp = createLucideIcon("trending-up", [["path", {
-	d: "M16 7h6v6",
-	key: "box55l"
-}], ["path", {
-	d: "m22 7-8.5 8.5-5-5L2 17",
-	key: "1t1m79"
-}]]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -22331,6 +22339,98 @@ var AGMusicAudioEngine = class {
 	}
 };
 var audioEngine = new AGMusicAudioEngine();
+// src/components/CategorySegmentGrid.tsx
+var EASE_OUT_EXPO = [
+	.16,
+	1,
+	.3,
+	1
+];
+var CategorySegmentGrid = ({ activeTab, hasDrillFilter, counts, onSelectTab }) => {
+	const tiles = [
+		{
+			id: "tracks",
+			label: "Tracks",
+			count: counts.tracks,
+			icon: Music2
+		},
+		{
+			id: "albums",
+			label: "Albums",
+			count: counts.albums,
+			icon: Disc3
+		},
+		{
+			id: "artists",
+			label: "Artists",
+			count: counts.artists,
+			icon: User
+		},
+		{
+			id: "genres",
+			label: "Genres",
+			count: counts.genres,
+			icon: Tag
+		},
+		{
+			id: "folders",
+			label: "Folders",
+			count: counts.folders,
+			icon: Folder
+		},
+		{
+			id: "favorites",
+			label: "Favorites",
+			count: counts.favorites,
+			icon: Heart
+		}
+	];
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("nav", {
+		"aria-label": "Music Library Categories",
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: "grid grid-cols-3 gap-2 sm:gap-3.5",
+			children: tiles.map((tile, idx) => {
+				const Icon = tile.icon;
+				const active = activeTab === tile.id && !hasDrillFilter;
+				return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(motion.button, {
+					type: "button",
+					onClick: () => onSelectTab(tile.id),
+					"aria-label": `${tile.label} (${tile.count})`,
+					"aria-pressed": active,
+					initial: {
+						opacity: 0,
+						y: 8
+					},
+					animate: {
+						opacity: 1,
+						y: 0
+					},
+					transition: {
+						duration: .2,
+						delay: idx * .025,
+						ease: EASE_OUT_EXPO
+					},
+					whileTap: { scale: .96 },
+					className: "group min-h-[124px] sm:min-h-[144px] px-2 sm:px-3 py-4 rounded-2xl border-0 bg-transparent hover:bg-white/[0.06] active:bg-white/[0.08] flex flex-col items-center justify-center text-center transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "mb-2.5 flex items-center justify-center",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { className: "w-9 h-9 sm:w-11 sm:h-11 text-[var(--accent)] transition-transform duration-150 group-hover:scale-105" })
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-sm sm:text-base font-semibold text-white truncate max-w-full whitespace-nowrap",
+							children: tile.label
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "mt-0.5 text-xs sm:text-sm font-normal font-mono-tabular tabular-nums text-white/70",
+							children: tile.count
+						})
+					]
+				}, tile.id);
+			})
+		})
+	});
+};
 // src/utils/formatters.ts
 function formatTime(seconds) {
 	if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -23302,22 +23402,12 @@ var NowPlayingModal = ({ open, onClose, track, isPlaying, positionSec, shuffle, 
 						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronDown, { className: "w-6 h-6" })
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex-1 min-w-0 overflow-hidden text-center",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "relative overflow-hidden whitespace-nowrap",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "marquee-track",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-sm font-semibold tracking-wide text-white px-6",
-									children: track.title
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-sm font-semibold tracking-wide text-white px-6",
-									"aria-hidden": "true",
-									children: track.title
-								})]
-							})
+						className: "flex-1 min-w-0 text-center px-2",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-sm font-semibold text-white truncate",
+							children: track.title
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-							className: "text-xs text-white/70 truncate",
+							className: "text-xs text-white/65 truncate",
 							children: [
 								track.artist,
 								" · ",
@@ -24147,10 +24237,10 @@ var SideDrawer = ({ open, initialSection = "menu", onClose, settings, onUpdateSe
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "min-w-0",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-								className: "font-display text-base font-bold tracking-wide text-white truncate",
+								className: "text-base font-semibold text-white truncate",
 								children: "AG Music Player"
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-xs text-white/65 truncate",
+								className: "text-xs text-white/60 truncate",
 								children: dynamicVersion
 							})]
 						})]
@@ -24211,100 +24301,119 @@ var SideDrawer = ({ open, initialSection = "menu", onClose, settings, onUpdateSe
 							})
 						}),
 						activeSection === "theme" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "space-y-6",
+							className: "space-y-6 pb-4",
 							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center justify-between mb-3",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "flex items-center justify-between mb-3.5",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "flex items-center gap-2",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4 text-[var(--accent)]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "w-7 h-7 rounded-lg bg-[var(--accent-soft)] flex items-center justify-center",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4 text-[var(--accent)]" })
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
 											className: "text-sm font-semibold text-white",
-											children: "Theme Styles"
-										})]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-xs text-white/60",
-										children: "Live Preview"
-									})]
+											children: "Theme Presets"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[11px] text-white/60",
+											children: "Tap to instantly apply & preview"
+										})] })]
+									})
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "space-y-3",
+									className: "grid grid-cols-1 gap-3",
 									children: SCENIC_THEMES.map((theme) => {
 										const selected = currentScenicId === theme.id;
 										return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 											type: "button",
 											onClick: () => handleSelectScenicTheme(theme.id),
-											className: `w-full p-3 rounded-2xl border text-left transition-all ${selected ? "border-[var(--accent)] bg-white/[0.08] shadow-lg" : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"}`,
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center justify-between mb-2.5",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-													className: "min-w-0",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-														className: "text-sm font-semibold text-white truncate",
-														children: theme.label
-													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-														className: "text-[11px] text-white/60 truncate",
-														children: theme.subtitle
-													})]
-												}), selected && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center shrink-0",
-													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5" })
-												})]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "rounded-xl p-2.5 border border-white/10 space-y-2",
-												style: { background: theme.previewGradient },
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-													className: "flex items-center gap-2.5",
-													children: [
-														/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-															className: "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/15",
-															style: { backgroundColor: theme.accentSoftRgba },
-															children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Disc3, {
-																className: "w-4 h-4",
-																style: { color: theme.accentHex }
-															})
-														}),
-														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-															className: "flex-1 min-w-0",
-															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-																className: "text-xs font-semibold text-white truncate",
-																children: currentTrack?.title ?? "Midnight Resonance"
-															}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-																className: "text-[10px] text-white/65 truncate",
-																children: currentTrack?.artist ?? "AG Audio Engine"
+											className: `w-full p-3.5 rounded-2xl border text-left transition-all relative overflow-hidden ${selected ? "border-[var(--accent)] bg-white/[0.09] shadow-[0_0_24px_rgba(245,197,66,0.15)] ring-1 ring-[var(--accent)]" : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07] hover:border-white/20"}`,
+											children: [
+												selected && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+													className: "absolute top-0 right-0 w-24 h-24 pointer-events-none opacity-20 rounded-bl-full",
+													style: { background: theme.accentHex }
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex items-center justify-between mb-3 relative z-10",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+														className: "min-w-0",
+														children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+															className: "text-sm font-semibold text-white truncate flex items-center gap-2",
+															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: theme.label }), selected && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+																className: "inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[var(--accent)] text-[var(--accent-fg)]",
+																children: "Active"
 															})]
-														}),
-														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-															className: "flex items-center gap-1.5 shrink-0",
-															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-																className: "w-6 h-6 rounded-full flex items-center justify-center",
-																style: {
-																	backgroundColor: theme.accentHex,
-																	color: theme.accentFgHex
-																},
-																children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-3 h-3 fill-current ml-0.5" })
-															}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SkipForward, { className: "w-3.5 h-3.5 text-white/75" })]
+														}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+															className: "text-[11px] text-white/60 truncate mt-0.5",
+															children: theme.subtitle
+														})]
+													}), selected && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center shrink-0 shadow-md",
+														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5" })
+													})]
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "rounded-xl p-3 border border-white/12 space-y-2.5 relative z-10 shadow-inner",
+													style: { background: theme.previewGradient },
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+														className: "flex items-center gap-3",
+														children: [
+															/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+																className: "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border border-white/20 shadow-sm",
+																style: { backgroundColor: theme.accentSoftRgba },
+																children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Disc3, {
+																	className: "w-4 h-4",
+																	style: { color: theme.accentHex }
+																})
+															}),
+															/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+																className: "flex-1 min-w-0",
+																children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+																	className: "text-xs font-semibold text-white truncate",
+																	children: currentTrack?.title ?? "Midnight Resonance"
+																}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+																	className: "text-[10px] text-white/65 truncate",
+																	children: currentTrack?.artist ?? "AG Audio Engine"
+																})]
+															}),
+															/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+																className: "flex items-center gap-1.5 shrink-0",
+																children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+																	className: "w-6 h-6 rounded-full flex items-center justify-center shadow",
+																	style: {
+																		backgroundColor: theme.accentHex,
+																		color: theme.accentFgHex
+																	},
+																	children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-3 h-3 fill-current ml-0.5" })
+																})
+															})
+														]
+													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+														className: "h-1 w-full rounded-full bg-white/20 overflow-hidden",
+														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+															className: "h-full rounded-full transition-all duration-300",
+															style: {
+																width: "62%",
+																backgroundColor: theme.accentHex
+															}
 														})
-													]
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-													className: "h-1 w-full rounded-full bg-white/15 overflow-hidden",
-													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-														className: "h-full rounded-full",
-														style: {
-															width: "58%",
-															backgroundColor: theme.accentHex
-														}
-													})
-												})]
-											})]
+													})]
+												})
+											]
 										}, theme.id);
 									})
 								})] }),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "space-y-3 pt-2 border-t border-white/10",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-										className: "text-sm font-semibold text-white",
-										children: "Accent Color"
+									className: "space-y-3 pt-3 border-t border-white/10",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+											className: "text-sm font-semibold text-white",
+											children: "Accent Hue"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "text-[11px] text-white/60",
+											children: "Global UI highlight"
+										})]
 									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-										className: "flex items-center justify-between gap-2 p-3 rounded-2xl bg-white/[0.04] border border-white/10",
+										className: "flex items-center justify-between gap-2 p-3.5 rounded-2xl bg-white/[0.04] border border-white/10",
 										children: ACCENT_OPTIONS.map((opt) => {
 											const selected = settings.accentId === opt.id;
 											return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
@@ -24312,15 +24421,15 @@ var SideDrawer = ({ open, initialSection = "menu", onClose, settings, onUpdateSe
 												onClick: () => onUpdateSettings({ accentId: opt.id }),
 												"aria-label": opt.label,
 												title: opt.label,
-												className: `w-10 h-10 rounded-full flex items-center justify-center transition-transform ${selected ? "scale-110 ring-2 ring-white ring-offset-2 ring-offset-[#0A0C16]" : "hover:scale-105 opacity-85 hover:opacity-100"}`,
+												className: `w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm ${selected ? "scale-110 ring-2 ring-white ring-offset-2 ring-offset-[#0A0C16]" : "hover:scale-105 opacity-80 hover:opacity-100"}`,
 												style: { backgroundColor: opt.hex },
-												children: selected && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-4 h-4 text-white drop-shadow" })
+												children: selected && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-4 h-4 text-white drop-shadow-md" })
 											}, opt.id);
 										})
 									})]
 								}),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "space-y-2 pt-2 border-t border-white/10",
+									className: "space-y-2 pt-3 border-t border-white/10",
 									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToggleSwitchRow, {
 										checked: Boolean(settings.autoTheme),
 										onChange: (next) => onUpdateSettings({ autoTheme: next }),
@@ -24934,10 +25043,30 @@ var STORAGE_KEYS = {
 	tracks: "ag_music_tracks_v1",
 	playlists: "ag_music_playlists_v1",
 	settings: "ag_music_settings_v1",
-	equalizer: "ag_music_equalizer_v1",
-	recentIds: "ag_music_recent_v1",
-	playCounts: "ag_music_playcounts_v1"
+	equalizer: "ag_music_equalizer_v1"
 };
+function getTrackFileName(track) {
+	const raw = track.filePath || track.audioUrl || "";
+	if (!raw) return "";
+	const segments = raw.split("?")[0].split(/[/\\]/).filter(Boolean);
+	return segments[segments.length - 1] || "";
+}
+function matchesSearchQuery(track, rawQuery) {
+	const trimmed = rawQuery.trim().toLowerCase();
+	if (!trimmed) return true;
+	const tokens = trimmed.split(/\s+/).filter(Boolean);
+	const fileName = getTrackFileName(track);
+	const haystack = [
+		track.title,
+		fileName,
+		track.filePath ?? "",
+		track.folder,
+		track.artist,
+		track.album,
+		track.genre
+	].join(" ").toLowerCase();
+	return tokens.every((tok) => haystack.includes(tok));
+}
 function loadInitialTracks() {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEYS.tracks);
@@ -24978,38 +25107,16 @@ function loadInitialEqualizer() {
 	} catch {}
 	return DEFAULT_EQUALIZER;
 }
-function loadInitialRecentIds() {
-	try {
-		const raw = localStorage.getItem(STORAGE_KEYS.recentIds);
-		if (raw) {
-			const parsed = JSON.parse(raw);
-			if (Array.isArray(parsed)) return parsed;
-		}
-	} catch {}
-	return [];
-}
-function loadInitialPlayCounts() {
-	try {
-		const raw = localStorage.getItem(STORAGE_KEYS.playCounts);
-		if (raw) {
-			const parsed = JSON.parse(raw);
-			if (parsed && typeof parsed === "object") return parsed;
-		}
-	} catch {}
-	return {};
-}
 function App() {
 	const [tracks, setTracks] = (0, import_react.useState)(loadInitialTracks);
 	const [playlists, setPlaylists] = (0, import_react.useState)(loadInitialPlaylists);
 	const [settings, setSettings] = (0, import_react.useState)(loadInitialSettings);
 	const [equalizer, setEqualizer] = (0, import_react.useState)(loadInitialEqualizer);
-	const [recentIds, setRecentIds] = (0, import_react.useState)(loadInitialRecentIds);
-	const [playCounts, setPlayCounts] = (0, import_react.useState)(loadInitialPlayCounts);
-	const [activeTab, setActiveTab] = (0, import_react.useState)("playlists");
+	const [activeTab, setActiveTab] = (0, import_react.useState)(null);
 	const [searchOpen, setSearchOpen] = (0, import_react.useState)(false);
 	const [searchQuery, setSearchQuery] = (0, import_react.useState)("");
 	const [drawerOpen, setDrawerOpen] = (0, import_react.useState)(false);
-	const [drawerSection, setDrawerSection] = (0, import_react.useState)("settings");
+	const [drawerSection, setDrawerSection] = (0, import_react.useState)("menu");
 	const [nowPlayingOpen, setNowPlayingOpen] = (0, import_react.useState)(false);
 	const [drillFilter, setDrillFilter] = (0, import_react.useState)(null);
 	const [queue, setQueue] = (0, import_react.useState)(() => loadInitialTracks().filter((t) => t.durationSec >= 30));
@@ -25110,8 +25217,8 @@ function App() {
 			setDrillFilter(null);
 			return true;
 		}
-		if (activeTab !== "tracks") {
-			setActiveTab("tracks");
+		if (activeTab !== null) {
+			setActiveTab(null);
 			return true;
 		}
 		return false;
@@ -25142,10 +25249,19 @@ function App() {
 			if (!(prev.length !== merged.length || prev.some((t, idx) => t.id !== merged[idx]?.id || t.contentUri !== merged[idx]?.contentUri || t.title !== merged[idx]?.title)) && prev.length > 0) return prev;
 			return merged;
 		});
-		setQueue((prevQueue) => prevQueue.length === 0 ? incoming : prevQueue);
+		setQueue((prevQueue) => {
+			if (prevQueue.length > 0) return prevQueue;
+			const filtered = settings.filterShortClips ? incoming.filter((t) => t.durationSec >= settings.minDurationSec && t.sizeKb >= settings.minSizeKb) : incoming;
+			return filtered.length > 0 ? filtered : incoming;
+		});
 		setCurrentTrackId((prevId) => prevId || incoming[0]?.id || "");
 		if (isManual) showToast(incoming.length > 0 ? `Refreshed library (${incoming.length} audio files)` : "No audio files found on device");
-	}, [showToast]);
+	}, [
+		settings.filterShortClips,
+		settings.minDurationSec,
+		settings.minSizeKb,
+		showToast
+	]);
 	const scanDeviceStorage = (0, import_react.useCallback)((isManual = false) => {
 		try {
 			const bridge = window.AndroidBridge;
@@ -25272,16 +25388,6 @@ function App() {
 		} catch {}
 	}, [equalizer]);
 	(0, import_react.useEffect)(() => {
-		try {
-			localStorage.setItem(STORAGE_KEYS.recentIds, JSON.stringify(recentIds));
-		} catch {}
-	}, [recentIds]);
-	(0, import_react.useEffect)(() => {
-		try {
-			localStorage.setItem(STORAGE_KEYS.playCounts, JSON.stringify(playCounts));
-		} catch {}
-	}, [playCounts]);
-	(0, import_react.useEffect)(() => {
 		const root = document.documentElement;
 		if (settings.themeMode === "dark") root.classList.add("dark");
 		else root.classList.remove("dark");
@@ -25308,14 +25414,12 @@ function App() {
 	}, [settings.fadeOnPause]);
 	const visibleTracks = (0, import_react.useMemo)(() => {
 		if (!settings.autoSyncPermission) return [];
-		const q = searchQuery.trim().toLowerCase();
 		return tracks.filter((t) => {
 			if (settings.filterShortClips) {
 				if (t.durationSec < settings.minDurationSec || t.sizeKb < settings.minSizeKb) return false;
 			}
 			if (settings.hiddenFolders.includes(t.folder)) return false;
-			if (!q) return true;
-			return t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q) || t.album.toLowerCase().includes(q) || t.genre.toLowerCase().includes(q) || t.folder.toLowerCase().includes(q);
+			return matchesSearchQuery(t, searchQuery);
 		});
 	}, [
 		tracks,
@@ -25335,9 +25439,9 @@ function App() {
 		visibleTracks,
 		currentTrackId
 	]);
-	(0, import_react.useMemo)(() => {
+	const albums = (0, import_react.useMemo)(() => {
 		const map = /* @__PURE__ */ new Map();
-		visibleTracks.forEach((t) => {
+		audioTracks.forEach((t) => {
 			const existing = map.get(t.album);
 			if (existing) {
 				existing.count += 1;
@@ -25350,10 +25454,10 @@ function App() {
 			});
 		});
 		return Array.from(map.values());
-	}, [visibleTracks]);
-	(0, import_react.useMemo)(() => {
+	}, [audioTracks]);
+	const artists = (0, import_react.useMemo)(() => {
 		const map = /* @__PURE__ */ new Map();
-		visibleTracks.forEach((t) => {
+		audioTracks.forEach((t) => {
 			const existing = map.get(t.artist);
 			if (existing) {
 				existing.trackCount += 1;
@@ -25367,10 +25471,10 @@ function App() {
 			});
 		});
 		return Array.from(map.values());
-	}, [visibleTracks]);
+	}, [audioTracks]);
 	const folders = (0, import_react.useMemo)(() => {
 		const map = /* @__PURE__ */ new Map();
-		visibleTracks.forEach((t) => {
+		audioTracks.forEach((t) => {
 			map.set(t.folder, (map.get(t.folder) ?? 0) + 1);
 		});
 		return Array.from(map.entries()).map(([path, count]) => {
@@ -25381,65 +25485,44 @@ function App() {
 				count
 			};
 		});
-	}, [visibleTracks]);
-	(0, import_react.useMemo)(() => {
+	}, [audioTracks]);
+	const genres = (0, import_react.useMemo)(() => {
 		const map = /* @__PURE__ */ new Map();
-		visibleTracks.forEach((t) => {
+		audioTracks.forEach((t) => {
 			map.set(t.genre, (map.get(t.genre) ?? 0) + 1);
 		});
 		return Array.from(map.entries()).map(([name, count]) => ({
 			name,
 			count
 		}));
-	}, [visibleTracks]);
-	const recentlyPlayedTracks = (0, import_react.useMemo)(() => {
-		const map = new Map(audioTracks.map((t) => [t.id, t]));
-		return recentIds.map((id) => map.get(id)).filter((t) => Boolean(t));
-	}, [audioTracks, recentIds]);
-	const mostPlayedTracks = (0, import_react.useMemo)(() => {
-		return audioTracks.filter((t) => (playCounts[t.id] ?? 0) > 0).sort((a, b) => (playCounts[b.id] ?? 0) - (playCounts[a.id] ?? 0));
-	}, [audioTracks, playCounts]);
+	}, [audioTracks]);
 	const drillTracks = (0, import_react.useMemo)(() => {
 		if (!drillFilter) return [];
-		if (drillFilter.type === "favorites") return favoriteTracks;
-		if (drillFilter.type === "recent") return recentlyPlayedTracks;
-		if (drillFilter.type === "most_played") return mostPlayedTracks;
-		if (drillFilter.type === "album") return visibleTracks.filter((t) => t.album === drillFilter.value);
-		if (drillFilter.type === "artist") return visibleTracks.filter((t) => t.artist === drillFilter.value);
-		if (drillFilter.type === "folder") return visibleTracks.filter((t) => t.folder === drillFilter.value);
-		if (drillFilter.type === "genre") return visibleTracks.filter((t) => t.genre === drillFilter.value);
+		if (drillFilter.type === "album") return audioTracks.filter((t) => t.album === drillFilter.value);
+		if (drillFilter.type === "artist") return audioTracks.filter((t) => t.artist === drillFilter.value);
+		if (drillFilter.type === "folder") return audioTracks.filter((t) => t.folder === drillFilter.value);
+		if (drillFilter.type === "genre") return audioTracks.filter((t) => t.genre === drillFilter.value);
 		if (drillFilter.type === "playlist") {
 			const pl = playlists.find((p) => p.id === drillFilter.value);
 			if (!pl) return [];
-			return pl.trackIds.map((id) => tracks.find((t) => t.id === id)).filter((t) => Boolean(t));
+			return pl.trackIds.map((id) => tracks.find((t) => t.id === id)).filter((t) => Boolean(t && matchesSearchQuery(t, searchQuery)));
 		}
 		return [];
 	}, [
 		drillFilter,
-		favoriteTracks,
-		recentlyPlayedTracks,
-		mostPlayedTracks,
-		visibleTracks,
+		audioTracks,
 		playlists,
-		tracks
+		tracks,
+		searchQuery
 	]);
-	const recordTrackPlay = (0, import_react.useCallback)((trackId) => {
-		if (!trackId) return;
-		setRecentIds((prev) => [trackId, ...prev.filter((id) => id !== trackId)].slice(0, 50));
-		setPlayCounts((prev) => ({
-			...prev,
-			[trackId]: (prev[trackId] ?? 0) + 1
-		}));
-	}, []);
 	const playTrack = (0, import_react.useCallback)(async (track, customQueue) => {
 		if (customQueue && customQueue.length > 0) setQueue(customQueue);
 		else if (!queue.some((q) => q.id === track.id)) setQueue((prev) => [track, ...prev]);
 		setCurrentTrackId(track.id);
 		setPositionSec(0);
 		setIsPlaying(true);
-		recordTrackPlay(track.id);
 		await audioEngine.playTrack(track, 0);
-	}, [queue, recordTrackPlay]);
+	}, [queue]);
 	const handleTogglePlay = (0, import_react.useCallback)(async () => {
 		if (!currentTrack) return;
 		if (isPlaying) {
@@ -25492,7 +25575,6 @@ function App() {
 			setCurrentTrackId(nextTrack.id);
 			setPositionSec(0);
 			setIsPlaying(true);
-			recordTrackPlay(nextTrack.id);
 			await audioEngine.playTrack(nextTrack, 0);
 		}
 	}, [
@@ -25501,8 +25583,7 @@ function App() {
 		repeatMode,
 		shuffle,
 		sleepTimer,
-		showToast,
-		recordTrackPlay
+		showToast
 	]);
 	const handlePrev = (0, import_react.useCallback)(async () => {
 		if (queue.length === 0 || !currentTrack) return;
@@ -25518,14 +25599,12 @@ function App() {
 			setCurrentTrackId(prevTrack.id);
 			setPositionSec(0);
 			setIsPlaying(true);
-			recordTrackPlay(prevTrack.id);
 			await audioEngine.playTrack(prevTrack, 0);
 		}
 	}, [
 		queue,
 		currentTrack,
-		positionSec,
-		recordTrackPlay
+		positionSec
 	]);
 	(0, import_react.useEffect)(() => {
 		audioEngine.setCallbacks((pos) => setPositionSec(pos), () => {
@@ -25869,21 +25948,22 @@ function App() {
 			return next;
 		});
 	};
-	const renderTrackRow = (track) => {
+	const renderTrackRow = (track, showFileSubtitle = false) => {
 		const active = currentTrack?.id === track.id;
+		const fileName = getTrackFileName(track);
 		return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: `group relative flex items-center gap-3.5 px-3 py-2.5 rounded-xl border-0 transition-colors ${active ? "bg-[var(--accent-soft)]" : "hover:bg-white/[0.08]"}`,
+			className: `relative flex items-center gap-3 px-2.5 py-2 rounded-xl border-0 transition-colors ${active ? "bg-[var(--accent-soft)]" : "hover:bg-white/[0.07]"}`,
 			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-				onClick: () => void playTrack(track, drillFilter ? drillTracks : visibleTracks),
-				className: "flex flex-1 items-center gap-3.5 min-w-0 text-left min-h-[44px]",
+				onClick: () => void playTrack(track, drillFilter ? drillTracks : audioTracks),
+				className: "flex flex-1 items-center gap-3 min-w-0 text-left min-h-[44px]",
 				children: [
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CoverImage, {
 						src: track.coverUrl,
 						alt: track.album,
-						className: "w-12 h-12 rounded-xl object-cover shrink-0",
+						className: "w-11 h-11 rounded-xl object-cover shrink-0",
 						fallback: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "w-12 h-12 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Disc3, { className: `w-6 h-6 ${active ? "text-[var(--accent)]" : "text-[var(--accent)]/80"}` })
+							className: "w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Disc3, { className: `w-5 h-5 ${active ? "text-[var(--accent)]" : "text-[var(--accent)]/85"}` })
 						})
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -25891,17 +25971,13 @@ function App() {
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 							className: `text-sm font-semibold truncate ${active ? "text-[var(--accent)]" : "text-white"}`,
 							children: track.title
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-							className: "text-xs text-white/70 truncate",
-							children: [
-								track.artist,
-								" · ",
-								track.album
-							]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs text-white/65 truncate",
+							children: showFileSubtitle && fileName ? `${fileName} · ${track.artist}` : `${track.artist} · ${track.album}`
 						})]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-xs font-mono-tabular tabular-nums text-white/70 shrink-0",
+						className: "text-xs font-mono-tabular tabular-nums text-white/65 shrink-0",
 						children: formatTime(track.durationSec)
 					})
 				]
@@ -25910,7 +25986,7 @@ function App() {
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 					onClick: () => setMenuTrack(track),
 					"aria-label": `Options for ${track.title}`,
-					className: "min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/75 hover:text-white hover:bg-white/10",
+					className: "min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/70 hover:text-white hover:bg-white/10",
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EllipsisVertical, { className: "w-4 h-4" })
 				})
 			})]
@@ -25923,77 +25999,75 @@ function App() {
 			children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ScenicBackdrop, {}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("header", {
-					className: "sticky top-0 z-30 bg-[#060E1F]/80 backdrop-blur-xl border-b border-white/10",
+					className: "sticky top-0 z-30 bg-transparent border-0",
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "max-w-7xl mx-auto px-4 sm:px-6 pt-3 pb-3 space-y-3",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "h-10 flex items-center justify-between gap-3",
-							children: searchOpen ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex-1 flex items-center gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-									type: "text",
-									autoFocus: true,
-									value: searchQuery,
-									onChange: (e) => setSearchQuery(e.target.value),
-									placeholder: "Search songs, playlists, folders...",
-									className: "w-full px-3.5 py-2 rounded-xl bg-white/[0.08] border border-white/15 text-sm text-white placeholder:text-white/55 focus:outline-none focus:border-[var(--accent)]"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: () => {
-										setSearchOpen(false);
-										setSearchQuery("");
-									},
-									"aria-label": "Close Search",
-									className: "min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 shrink-0",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-5 h-5" })
-								})]
-							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
-								className: "text-lg sm:text-xl font-bold tracking-tight text-white truncate whitespace-nowrap",
-								children: "AG Music Player"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-1 shrink-0",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: () => setSearchOpen(true),
-									"aria-label": "Search Music Library",
-									className: "min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition-colors",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Search, { className: "w-5 h-5" })
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: () => {
-										setDrawerSection("settings");
-										setDrawerOpen(true);
-									},
-									"aria-label": "Open Global Settings",
-									className: "min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/90 hover:text-white hover:bg-white/10 transition-colors",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Settings, { className: "w-5 h-5" })
-								})]
-							})] })
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("nav", {
-							"aria-label": "Home Navigation Tabs",
-							className: "grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/[0.06] border border-white/10",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								type: "button",
+						className: "max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-2.5 min-w-0",
+							children: [activeTab !== null || drillFilter ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: () => {
-									setActiveTab("playlists");
-									setDrillFilter(null);
+									if (drillFilter) setDrillFilter(null);
+									else setActiveTab(null);
 								},
-								"aria-pressed": activeTab === "playlists" && !drillFilter,
-								className: `min-h-[38px] rounded-lg text-xs sm:text-sm font-semibold transition-colors ${activeTab === "playlists" || drillFilter && drillFilter.type !== "folder" ? "bg-[var(--accent)] text-[var(--accent-fg)] shadow-sm" : "text-white/75 hover:text-white"}`,
-								children: "Playlists"
+								"aria-label": "Go Back",
+								className: "min-h-[44px] min-w-[44px] -ml-2 flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronLeft, { className: "w-6 h-6" })
+							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								onClick: () => {
+									setDrawerSection("menu");
+									setDrawerOpen(true);
+								},
+								"aria-label": "Open Navigation Menu",
+								className: "min-h-[44px] min-w-[44px] -ml-2 flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Menu, { className: "w-5 h-5" })
+							}), !searchOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
+								className: "text-base sm:text-lg font-semibold text-white truncate whitespace-nowrap",
+								children: drillFilter ? drillFilter.label : activeTab === "tracks" ? "Tracks" : activeTab === "albums" ? "Albums" : activeTab === "artists" ? "Artists" : activeTab === "genres" ? "Genres" : activeTab === "folders" ? "Folders" : activeTab === "favorites" ? "Favorites" : "AG Music Player"
+							})]
+						}), searchOpen ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex-1 flex items-center gap-2 max-w-xl",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "relative flex-1 flex items-center",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Search, { className: "w-4 h-4 text-white/55 absolute left-3 pointer-events-none" }),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+										type: "search",
+										autoFocus: true,
+										value: searchQuery,
+										onChange: (e) => setSearchQuery(e.target.value),
+										placeholder: "Search files, songs, folders...",
+										"aria-label": "Search audio files",
+										className: "w-full pl-9 pr-8 py-2 rounded-xl bg-white/10 border border-white/15 text-sm text-white placeholder:text-white/50 focus:outline-none focus:border-[var(--accent)]"
+									}),
+									searchQuery && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: () => setSearchQuery(""),
+										"aria-label": "Clear search text",
+										className: "absolute right-2 p-1 rounded-full text-white/60 hover:text-white hover:bg-white/10",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
+									})
+								]
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								type: "button",
 								onClick: () => {
-									setActiveTab("folders");
-									setDrillFilter(null);
+									setSearchOpen(false);
+									setSearchQuery("");
 								},
-								"aria-pressed": activeTab === "folders" && !drillFilter,
-								className: `min-h-[38px] rounded-lg text-xs sm:text-sm font-semibold transition-colors ${activeTab === "folders" || drillFilter?.type === "folder" ? "bg-[var(--accent)] text-[var(--accent-fg)] shadow-sm" : "text-white/75 hover:text-white"}`,
-								children: "Folders"
+								"aria-label": "Close Search",
+								className: "min-h-[44px] px-2.5 flex items-center justify-center rounded-xl text-xs font-medium text-white/85 hover:text-white hover:bg-white/10 shrink-0",
+								children: "Cancel"
 							})]
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							onClick: () => setSearchOpen(true),
+							"aria-label": "Search Music Library",
+							className: "min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Search, { className: "w-5 h-5" })
 						})]
 					})
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("main", {
 					onTouchStart: (e) => {
-						if (drawerOpen || nowPlayingOpen || Boolean(editTagTrack) || Boolean(songInfoTrack) || Boolean(addToPlaylistTrack) || Boolean(pendingDeleteTrack) || sleepTimerOpen || playlistModal.open || updateState.status !== "idle" || isRefreshing) return;
+						if (drawerOpen || nowPlayingOpen || Boolean(editTagTrack) || Boolean(addToPlaylistTrack) || Boolean(pendingDeleteTrack) || sleepTimerOpen || playlistModal.open || updateState.status !== "idle" || isRefreshing) return;
 						if ((window.scrollY || document.documentElement.scrollTop || 0) <= 2 && e.touches.length === 1) pullStartYRef.current = e.touches[0].clientY;
 					},
 					onTouchMove: (e) => {
@@ -26037,7 +26111,7 @@ function App() {
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isRefreshing ? "Scanning device audio..." : pullDistance >= 52 ? "Release to refresh audio files" : "Pull down to refresh" })]
 							}),
 							!settings.autoSyncPermission && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3",
+								className: "p-4 rounded-2xl bg-[var(--scenic-surface,rgba(11,33,69,0.52))] backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									className: "flex items-start gap-3",
 									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-5 h-5 text-[var(--accent)] shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
@@ -26045,7 +26119,7 @@ function App() {
 										children: "Audio Permission Required"
 									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 										className: "text-xs text-white/70",
-										children: "Grant audio storage permission to sync folders and playlists."
+										children: "Grant audio storage permission to automatically sync all songs on your device."
 									})] })]
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 									onClick: () => {
@@ -26059,388 +26133,398 @@ function App() {
 									children: "Allow & Sync"
 								})]
 							}),
-							searchQuery.trim() ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-								"aria-label": "Search Results",
+							searchQuery.trim().length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+								"aria-label": "Search Files",
 								className: "space-y-3",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center justify-between",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
-										className: "text-sm font-semibold text-white/80",
+									className: "flex items-center justify-between px-1",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+										className: "text-xs font-medium text-white/70",
 										children: [
-											"Search Results (",
+											"Matching Files (",
 											audioTracks.length,
 											")"
 										]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-										onClick: () => setSearchQuery(""),
-										className: "text-xs font-medium text-[var(--accent)] hover:underline",
-										children: "Clear"
+									}), audioTracks.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										onClick: () => void playTrack(audioTracks[0], audioTracks),
+										className: "min-h-[34px] px-3.5 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold flex items-center gap-1.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-3.5 h-3.5 fill-current" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Play All" })]
 									})]
-								}), audioTracks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "py-12 text-center text-sm text-white/65",
+								}), audioTracks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "py-12 text-center space-y-2",
 									children: [
-										"No matching tracks found for “",
-										searchQuery,
-										"”."
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FileAudio, { className: "w-9 h-9 mx-auto text-white/40" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-sm font-medium text-white",
+											children: "No matching audio files"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-xs text-white/60",
+											children: "Try another file name, song title, artist, or folder name."
+										})
 									]
 								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 									className: "space-y-1",
-									children: audioTracks.map(renderTrackRow)
+									children: audioTracks.map((t) => renderTrackRow(t, true))
 								})]
-							}) : drillFilter ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(motion.section, {
-								initial: {
-									opacity: 0,
-									y: 8
+							}) : activeTab === null && !drillFilter ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CategorySegmentGrid, {
+								activeTab,
+								hasDrillFilter: Boolean(drillFilter),
+								counts: {
+									tracks: audioTracks.length,
+									albums: albums.length,
+									artists: artists.length,
+									genres: genres.length,
+									folders: folders.length,
+									favorites: favoriteTracks.length
 								},
-								animate: {
-									opacity: 1,
-									y: 0
-								},
-								transition: {
-									duration: .2,
-									ease: [
-										.16,
-										1,
-										.3,
-										1
-									]
-								},
-								className: "space-y-4",
+								onSelectTab: (tab) => {
+									setActiveTab(tab);
+									setDrillFilter(null);
+								}
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+								id: "playlists-list-section",
+								className: "pt-3 space-y-2.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "pb-4 border-b border-white/10 space-y-3",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-										className: "flex items-center gap-2 min-w-0",
-										children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-											onClick: () => setDrillFilter(null),
-											"aria-label": "Back",
-											className: "min-h-[40px] px-2.5 -ml-2 rounded-xl hover:bg-white/10 flex items-center gap-1 text-xs font-semibold text-white shrink-0",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronLeft, { className: "w-4 h-4 text-[var(--accent)]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Back" })]
-										})
+									className: "flex items-center justify-between",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-baseline gap-2",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+											className: "text-base font-semibold text-white",
+											children: "Playlists"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "text-xs font-mono-tabular tabular-nums text-white/65",
+											children: [
+												"(",
+												playlists.length,
+												")"
+											]
+										})]
 									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex flex-col sm:flex-row sm:items-center justify-between gap-3",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "min-w-0",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-												className: "text-lg font-bold text-white truncate",
-												children: drillFilter.label
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-												className: "text-xs text-white/65 truncate mt-0.5",
-												children: [drillFilter.type === "folder" ? `${drillFilter.value} · ` : "", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "font-mono-tabular",
+										className: "flex items-center gap-1",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => setPlaylistModal({
+												open: true,
+												mode: "create"
+											}),
+											"aria-label": "Create New Playlist",
+											className: "min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-[var(--accent)] hover:bg-white/10 transition-colors",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-5 h-5" })
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => {
+												if (playlists.length > 0) setDrillFilter({
+													type: "playlist",
+													value: playlists[0].id,
+													label: playlists[0].name
+												});
+												else setPlaylistModal({
+													open: true,
+													mode: "create"
+												});
+											},
+											"aria-label": "Open Playlists",
+											className: "min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-white/75 hover:text-white hover:bg-white/10 transition-colors",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-5 h-5" })
+										})]
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "space-y-1",
+									children: playlists.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => setPlaylistModal({
+											open: true,
+											mode: "create"
+										}),
+										className: "w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl border-0 bg-transparent hover:bg-white/[0.06] text-left transition-colors",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-5 h-5 text-[var(--accent)]" })
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex-1 min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-sm font-medium text-white truncate",
+												children: "No playlists yet"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-xs text-white/65 truncate",
+												children: "Tap + to create a playlist"
+											})]
+										})]
+									}) : playlists.map((pl) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "relative flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl border-0 bg-transparent hover:bg-white/[0.06] transition-colors",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											onClick: () => setDrillFilter({
+												type: "playlist",
+												value: pl.id,
+												label: pl.name
+											}),
+											className: "flex flex-1 items-center gap-3 min-w-0 text-left min-h-[44px]",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ListMusic, { className: "w-5 h-5 text-[var(--accent)]" })
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex-1 min-w-0",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+													className: "text-sm font-medium text-white truncate",
+													children: pl.name
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+													className: "text-xs text-white/65",
 													children: [
-														drillTracks.length,
+														pl.trackIds.length,
 														" ",
-														drillTracks.length === 1 ? "song" : "songs"
+														pl.trackIds.length === 1 ? "track" : "tracks"
 													]
 												})]
 											})]
-										}), drillTracks.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-2 shrink-0",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-												onClick: () => void playTrack(drillTracks[0], drillTracks),
-												className: "min-h-[40px] px-4 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-xs font-semibold flex items-center gap-1.5 transition-colors",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-3.5 h-3.5 fill-current" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Play All" })]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-												onClick: () => {
-													const shuffled = [...drillTracks].sort(() => Math.random() - .5);
-													setShuffle(true);
-													playTrack(shuffled[0], shuffled);
-												},
-												className: "min-h-[40px] px-3.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.12] border border-white/10 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shuffle, { className: "w-3.5 h-3.5 text-[var(--accent)]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Shuffle" })]
-											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "relative shrink-0",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												onClick: () => setMenuPlaylist(pl),
+												"aria-label": `Playlist options for ${pl.name}`,
+												className: "min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/70 hover:text-white hover:bg-white/10",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EllipsisVertical, { className: "w-4 h-4" })
+											})
 										})]
-									})]
-								}), drillTracks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "py-12 text-center space-y-2",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Music2, { className: "w-10 h-10 mx-auto text-[var(--accent)] opacity-80" }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-											className: "text-sm font-semibold text-white",
-											children: "No songs here yet"
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-											className: "text-xs text-white/65",
-											children: drillFilter.type === "favorites" ? "Tap the heart icon on any song to save it to Favourites." : drillFilter.type === "recent" ? "Songs you play will appear here automatically." : drillFilter.type === "most_played" ? "Your most frequently played tracks will show up here." : "Add songs or scan your device storage."
-										})
-									]
-								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "space-y-1",
-									children: drillTracks.map(renderTrackRow)
+									}, pl.id))
 								})]
-							}, `drill-${drillFilter.type}-${drillFilter.value}`) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AnimatePresence, {
-								mode: "wait",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(motion.div, {
-									initial: {
-										opacity: 0,
-										y: 8
-									},
-									animate: {
-										opacity: 1,
-										y: 0
-									},
-									exit: {
-										opacity: 0,
-										y: -4
-									},
-									transition: {
-										duration: .18,
-										ease: [
-											.16,
-											1,
-											.3,
-											1
-										]
-									},
-									className: "space-y-7",
-									children: activeTab === "folders" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-										"aria-label": "Device Music Folders",
-										className: "space-y-3",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center justify-between",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
-												className: "text-sm font-semibold text-white/80",
-												children: [
-													"Device Folders (",
-													folders.length,
-													")"
-												]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-												onClick: handlePullRefresh,
-												className: "min-h-[36px] px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.11] text-xs font-medium text-white flex items-center gap-1.5 transition-colors",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: `w-3.5 h-3.5 text-[var(--accent)] ${isRefreshing ? "animate-spin" : ""}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Rescan" })]
-											})]
-										}), folders.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "py-12 text-center space-y-4",
-											children: [
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Folder, { className: "w-11 h-11 mx-auto text-[var(--accent)] opacity-85" }),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-													className: "space-y-1",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-														className: "text-sm font-semibold text-white",
-														children: "No music folders found"
-													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-														className: "text-xs text-white/65 max-w-xs mx-auto",
-														children: "Scan your device storage to discover Downloads, Music, and Recordings folders."
-													})]
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-													onClick: () => {
-														setSettings((prev) => ({
-															...prev,
-															autoSyncPermission: true
-														}));
-														const bridge = window.AndroidBridge;
-														if (bridge && typeof bridge.requestPermissionAndScan === "function") bridge.requestPermissionAndScan();
-														else scanDeviceStorage(true);
-													},
-													className: "min-h-[42px] px-5 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold shadow-sm",
-													children: "Scan Device Audio"
-												})
+							})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+								"aria-label": "Category Page",
+								className: "space-y-3.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center justify-between gap-4 pb-1 px-1",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-xs font-mono-tabular text-white/70",
+										children: drillFilter ? `${drillTracks.length} track${drillTracks.length === 1 ? "" : "s"}` : activeTab === "tracks" ? `${audioTracks.length} track${audioTracks.length === 1 ? "" : "s"}` : activeTab === "albums" ? `${albums.length} album${albums.length === 1 ? "" : "s"}` : activeTab === "artists" ? `${artists.length} artist${artists.length === 1 ? "" : "s"}` : activeTab === "folders" ? `${folders.length} folder${folders.length === 1 ? "" : "s"}` : activeTab === "favorites" ? `${favoriteTracks.length} favorite${favoriteTracks.length === 1 ? "" : "s"}` : `${genres.length} genre${genres.length === 1 ? "" : "s"}`
+									}), (drillFilter && drillTracks.length > 0 || !drillFilter && activeTab === "tracks" && audioTracks.length > 0 || !drillFilter && activeTab === "favorites" && favoriteTracks.length > 0) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										onClick: () => {
+											const list = drillFilter ? drillTracks : activeTab === "favorites" ? favoriteTracks : audioTracks;
+											if (list.length > 0) playTrack(list[0], list);
+										},
+										className: "min-h-[36px] px-4 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold flex items-center gap-1.5 shrink-0",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-3.5 h-3.5 fill-current" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Play All" })]
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AnimatePresence, {
+									mode: "wait",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(motion.div, {
+										initial: {
+											opacity: 0,
+											x: 10
+										},
+										animate: {
+											opacity: 1,
+											x: 0
+										},
+										exit: {
+											opacity: 0,
+											x: -8
+										},
+										transition: {
+											duration: .16,
+											ease: [
+												.16,
+												1,
+												.3,
+												1
 											]
-										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "divide-y divide-white/[0.08]",
-											children: folders.map((fld) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										},
+										children: drillFilter ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "space-y-1",
+											children: drillTracks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "py-12 text-center text-sm text-white/65",
+												children: "No tracks in this selection."
+											}) : drillTracks.map((t) => renderTrackRow(t))
+										}) : activeTab === "tracks" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "space-y-1",
+											children: audioTracks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "py-12 text-center space-y-4",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Music2, { className: "w-11 h-11 mx-auto text-[var(--accent)] opacity-90" }),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+														className: "space-y-1",
+														children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+															className: "text-sm font-semibold text-white",
+															children: "No audio tracks found"
+														}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+															className: "text-xs text-white/65 max-w-xs mx-auto",
+															children: "Grant storage permission and scan your device storage for MP3, WAV, M4A, FLAC, and AAC files."
+														})]
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+														onClick: () => {
+															setSettings((prev) => ({
+																...prev,
+																autoSyncPermission: true
+															}));
+															const bridge = window.AndroidBridge;
+															if (bridge && typeof bridge.requestPermissionAndScan === "function") bridge.requestPermissionAndScan();
+															else scanDeviceStorage(true);
+														},
+														className: "px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold shadow-lg active:scale-95 transition-transform",
+														children: "Rescan / Grant Permission"
+													})
+												]
+											}) : audioTracks.map((t) => renderTrackRow(t))
+										}) : activeTab === "albums" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "grid grid-cols-2 sm:grid-cols-3 gap-3.5",
+											children: albums.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "col-span-full py-12 text-center text-sm text-white/65",
+												children: "No albums found."
+											}) : albums.map((alb) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+												onClick: () => setDrillFilter({
+													type: "album",
+													value: alb.name,
+													label: alb.name
+												}),
+												style: { backgroundColor: "var(--scenic-surface, rgba(11, 33, 69, 0.52))" },
+												className: "group text-left rounded-2xl border-0 backdrop-blur-md p-3 hover:bg-white/[0.12] transition-colors",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+														className: "aspect-square rounded-xl overflow-hidden bg-white/10 mb-2.5",
+														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CoverImage, {
+															src: alb.coverUrl,
+															alt: alb.name,
+															className: "w-full h-full object-cover",
+															fallback: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+																className: "w-full h-full flex items-center justify-center",
+																children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Disc3, { className: "w-10 h-10 text-[var(--accent)] opacity-80" })
+															})
+														})
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+														className: "text-sm font-semibold text-white truncate",
+														children: alb.name
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+														className: "text-xs text-white/65 truncate",
+														children: [
+															alb.artist,
+															" · ",
+															alb.count,
+															" tracks"
+														]
+													})
+												]
+											}, alb.name))
+										}) : activeTab === "artists" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "space-y-1",
+											children: artists.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "py-12 text-center text-sm text-white/65",
+												children: "No artists found."
+											}) : artists.map((art) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+												onClick: () => setDrillFilter({
+													type: "artist",
+													value: art.name,
+													label: art.name
+												}),
+												className: "w-full px-3 py-2.5 flex items-center gap-3.5 hover:bg-white/[0.07] rounded-xl border-0 text-left min-h-[56px]",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CoverImage, {
+													src: art.coverUrl,
+													alt: art.name,
+													className: "w-11 h-11 rounded-full object-cover shrink-0",
+													fallback: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+														className: "w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0",
+														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(User, { className: "w-5 h-5 text-[var(--accent)]" })
+													})
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex-1 min-w-0",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+														className: "text-sm font-semibold text-white truncate",
+														children: art.name
+													}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+														className: "text-xs text-white/65",
+														children: [
+															art.albums.size,
+															" album",
+															art.albums.size === 1 ? "" : "s",
+															" ·",
+															" ",
+															art.trackCount,
+															" tracks"
+														]
+													})]
+												})]
+											}, art.name))
+										}) : activeTab === "folders" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "space-y-1",
+											children: folders.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "py-12 text-center text-sm text-white/65",
+												children: "No folders found."
+											}) : folders.map((fld) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 												onClick: () => setDrillFilter({
 													type: "folder",
 													value: fld.path,
 													label: fld.name
 												}),
-												className: "w-full py-3.5 px-2 flex items-center gap-3.5 hover:bg-white/[0.06] rounded-xl text-left min-h-[64px] transition-colors",
+												className: "w-full px-3 py-2.5 flex items-center gap-3.5 hover:bg-white/[0.07] rounded-xl border-0 text-left min-h-[56px]",
 												children: [
 													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-														className: "w-11 h-11 rounded-xl bg-white/[0.07] border border-white/10 flex items-center justify-center shrink-0",
+														className: "w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0",
 														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Folder, { className: "w-5 h-5 text-[var(--accent)]" })
 													}),
-													/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 														className: "flex-1 min-w-0",
-														children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 															className: "text-sm font-semibold text-white truncate",
 															children: fld.name
-														}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-															className: "text-xs text-white/60 truncate font-mono-tabular mt-0.5",
-															children: fld.path
-														})]
+														})
 													}),
-													/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-														className: "flex items-center gap-2 shrink-0",
-														children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-															className: "text-xs font-mono-tabular text-white/70",
-															children: [
-																fld.count,
-																" ",
-																fld.count === 1 ? "song" : "songs"
-															]
-														}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-white/45" })]
+													/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+														className: "text-xs font-mono-tabular text-white/65 shrink-0",
+														children: [
+															fld.count,
+															" ",
+															fld.count === 1 ? "track" : "tracks"
+														]
 													})
 												]
 											}, fld.path))
-										})]
-									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-										"aria-label": "Quick Access",
-										className: "space-y-3",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-											className: "text-xs font-semibold uppercase tracking-wider text-white/60",
-											children: "Quick Access"
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "grid grid-cols-3 gap-2.5 sm:gap-3.5",
-											children: [
-												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-													type: "button",
-													onClick: () => setDrillFilter({
-														type: "favorites",
-														value: "favorites",
-														label: "Favourites"
+										}) : activeTab === "favorites" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "space-y-1",
+											children: favoriteTracks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "py-12 text-center space-y-2",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heart, { className: "w-10 h-10 mx-auto text-[var(--accent)] opacity-80" }),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+														className: "text-sm font-semibold text-white",
+														children: "No favorite tracks yet"
 													}),
-													className: "p-3.5 sm:p-4 rounded-2xl bg-white/[0.05] hover:bg-white/[0.09] border border-white/10 text-left space-y-2.5 transition-colors",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heart, { className: "w-5 h-5 text-[var(--accent)]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-														className: "min-w-0",
-														children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-															className: "text-xs sm:text-sm font-semibold text-white truncate",
-															children: "Favourites"
-														}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-															className: "text-[11px] font-mono-tabular text-white/65 mt-0.5",
-															children: [favoriteTracks.length, " songs"]
-														})]
-													})]
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-													type: "button",
-													onClick: () => setDrillFilter({
-														type: "recent",
-														value: "recent",
-														label: "Recently Played"
-													}),
-													className: "p-3.5 sm:p-4 rounded-2xl bg-white/[0.05] hover:bg-white/[0.09] border border-white/10 text-left space-y-2.5 transition-colors",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Clock, { className: "w-5 h-5 text-[var(--accent)]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-														className: "min-w-0",
-														children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-															className: "text-xs sm:text-sm font-semibold text-white truncate",
-															children: "Recently Played"
-														}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-															className: "text-[11px] font-mono-tabular text-white/65 mt-0.5",
-															children: [recentlyPlayedTracks.length, " songs"]
-														})]
-													})]
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-													type: "button",
-													onClick: () => setDrillFilter({
-														type: "most_played",
-														value: "most_played",
-														label: "Most Played"
-													}),
-													className: "p-3.5 sm:p-4 rounded-2xl bg-white/[0.05] hover:bg-white/[0.09] border border-white/10 text-left space-y-2.5 transition-colors",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TrendingUp, { className: "w-5 h-5 text-[var(--accent)]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-														className: "min-w-0",
-														children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-															className: "text-xs sm:text-sm font-semibold text-white truncate",
-															children: "Most Played"
-														}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-															className: "text-[11px] font-mono-tabular text-white/65 mt-0.5",
-															children: [mostPlayedTracks.length, " songs"]
-														})]
-													})]
-												})
-											]
-										})]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-										id: "playlists-list-section",
-										className: "pt-2 border-t border-white/10 space-y-3",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center justify-between pt-2",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-baseline gap-2",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-													className: "text-base font-bold text-white",
-													children: "Your Playlists"
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "text-xs font-mono-tabular text-white/60",
-													children: [
-														"(",
-														playlists.length,
-														")"
-													]
-												})]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-												type: "button",
-												onClick: () => setPlaylistModal({
-													open: true,
-													mode: "create"
-												}),
-												className: "min-h-[38px] px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-[var(--accent)] flex items-center gap-1.5 transition-colors",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Create" })]
-											})]
-										}), playlists.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-											type: "button",
-											onClick: () => setPlaylistModal({
-												open: true,
-												mode: "create"
-											}),
-											className: "w-full flex items-center gap-3.5 px-3 py-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-left transition-colors",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-												className: "w-12 h-12 rounded-xl bg-white/[0.07] border border-white/10 flex items-center justify-center shrink-0",
-												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-5 h-5 text-[var(--accent)]" })
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex-1 min-w-0",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-													className: "text-sm font-semibold text-white truncate",
-													children: "No playlists yet"
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-													className: "text-xs text-white/65 truncate",
-													children: "Tap + Create to build a custom playlist"
-												})]
-											})]
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+														className: "text-xs text-white/65",
+														children: "Tap the heart icon on any track to keep it here."
+													})
+												]
+											}) : favoriteTracks.map((t) => renderTrackRow(t))
 										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "divide-y divide-white/[0.08]",
-											children: playlists.map((pl) => {
-												const firstTrack = tracks.find((t) => pl.trackIds.includes(t.id) && t.coverUrl);
-												return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-													className: "relative flex items-center justify-between gap-3 py-2.5 px-1.5 rounded-xl hover:bg-white/[0.05] transition-colors",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-														onClick: () => setDrillFilter({
-															type: "playlist",
-															value: pl.id,
-															label: pl.name
-														}),
-														className: "flex flex-1 items-center gap-3.5 min-w-0 text-left min-h-[48px]",
-														children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CoverImage, {
-															src: firstTrack?.coverUrl ?? null,
-															alt: pl.name,
-															className: "w-12 h-12 rounded-xl object-cover shrink-0 border border-white/10",
-															fallback: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-																className: "w-12 h-12 rounded-xl bg-white/[0.07] border border-white/10 flex items-center justify-center shrink-0",
-																children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ListMusic, { className: "w-5 h-5 text-[var(--accent)]" })
-															})
-														}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-															className: "flex-1 min-w-0",
-															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-																className: "text-sm font-semibold text-white truncate",
-																children: pl.name
-															}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-																className: "text-xs font-mono-tabular text-white/65 mt-0.5",
-																children: [
-																	pl.trackIds.length,
-																	" ",
-																	pl.trackIds.length === 1 ? "song" : "songs"
-																]
-															})]
-														})]
-													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-														onClick: () => setMenuPlaylist(pl),
-														"aria-label": `Playlist options for ${pl.name}`,
-														className: "min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/70 hover:text-white hover:bg-white/10 shrink-0",
-														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EllipsisVertical, { className: "w-4 h-4" })
-													})]
-												}, pl.id);
-											})
-										})]
-									})] })
-								}, activeTab)
+											className: "grid grid-cols-2 sm:grid-cols-3 gap-3",
+											children: genres.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "col-span-full py-12 text-center text-sm text-white/70",
+												children: "No genres found."
+											}) : genres.map((g) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+												onClick: () => setDrillFilter({
+													type: "genre",
+													value: g.name,
+													label: g.name
+												}),
+												style: { backgroundColor: "var(--scenic-surface, rgba(11, 33, 69, 0.52))" },
+												className: "p-4 rounded-2xl border-0 backdrop-blur-md hover:bg-white/[0.12] text-left space-y-2 transition-colors",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Tag, { className: "w-5 h-5 text-[var(--accent)]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+													className: "text-sm font-semibold text-white truncate",
+													children: g.name
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+													className: "text-xs text-white/70",
+													children: [
+														g.count,
+														" track",
+														g.count === 1 ? "" : "s"
+													]
+												})] })]
+											}, g.name))
+										})
+									}, drillFilter ? `drill-${drillFilter.type}-${drillFilter.value}` : activeTab)
+								})]
 							})
 						]
 					}), currentTrack && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("aside", {
-						className: "hidden lg:flex lg:col-span-5 xl:col-span-4 sticky top-32 flex-col rounded-3xl bg-black/25 backdrop-blur-xl border border-white/10 p-6 space-y-5 shadow-2xl text-white",
+						className: "hidden lg:flex lg:col-span-5 xl:col-span-4 sticky top-20 flex-col rounded-3xl bg-black/25 backdrop-blur-xl border border-white/10 p-6 space-y-5 shadow-2xl text-white",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center justify-between",
@@ -26470,22 +26554,12 @@ function App() {
 								})
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "text-center space-y-1 overflow-hidden",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "overflow-hidden whitespace-nowrap",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "marquee-track",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-base font-bold text-white px-6",
-											children: currentTrack.title
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-base font-bold text-white px-6",
-											"aria-hidden": "true",
-											children: currentTrack.title
-										})]
-									})
+								className: "text-center space-y-1 px-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-base font-semibold text-white truncate",
+									children: currentTrack.title
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "text-xs text-white/70 truncate",
+									className: "text-xs text-white/65 truncate",
 									children: [
 										currentTrack.artist,
 										" · ",
@@ -26890,7 +26964,7 @@ function App() {
 											setEditTagTrack(target);
 										},
 										className: "w-full min-h-[44px] px-3.5 py-2 rounded-xl flex items-center gap-3.5 hover:bg-white/[0.08] text-left text-white/85 transition-colors",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PenLine, { className: "w-4 h-4 text-white/65 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Edit Tag / Info" })]
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PenLine, { className: "w-4 h-4 text-white/65 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Edit Audio Tags" })]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 										onClick: () => {

@@ -146,17 +146,10 @@ export const NowPlayingModal: React.FC<NowPlayingModalProps> = ({
           <ChevronDown className="w-6 h-6" />
         </button>
 
-        {/* Center Marquee Scrolling Song Title */}
-        <div className="flex-1 min-w-0 overflow-hidden text-center">
-          <div className="relative overflow-hidden whitespace-nowrap">
-            <div className="marquee-track">
-              <span className="text-sm font-semibold tracking-wide text-white px-6">{track.title}</span>
-              <span className="text-sm font-semibold tracking-wide text-white px-6" aria-hidden="true">
-                {track.title}
-              </span>
-            </div>
-          </div>
-          <p className="text-xs text-white/70 truncate">
+        {/* Clean Static Track Title */}
+        <div className="flex-1 min-w-0 text-center px-2">
+          <p className="text-sm font-semibold text-white truncate">{track.title}</p>
+          <p className="text-xs text-white/65 truncate">
             {track.artist} · {track.album}
           </p>
         </div>

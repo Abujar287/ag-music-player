@@ -393,10 +393,10 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
               className="w-11 h-11 rounded-full object-cover border border-[var(--accent)]/60 shrink-0"
             />
             <div className="min-w-0">
-              <h2 className="font-display text-base font-bold tracking-wide text-white truncate">
+              <h2 className="text-base font-semibold text-white truncate">
                 AG Music Player
               </h2>
-              <p className="text-xs text-white/65 truncate">{dynamicVersion}</p>
+              <p className="text-xs text-white/60 truncate">{dynamicVersion}</p>
             </div>
           </div>
           <button
@@ -452,18 +452,22 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
 
           {/* THEME CUSTOMIZATION SCREEN */}
           {activeSection === 'theme' && (
-            <div className="space-y-6">
+            <div className="space-y-6 pb-4">
               <div>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-3.5">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[var(--accent)]" />
-                    <h3 className="text-sm font-semibold text-white">Theme Styles</h3>
+                    <div className="w-7 h-7 rounded-lg bg-[var(--accent-soft)] flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-[var(--accent)]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">Theme Presets</h3>
+                      <p className="text-[11px] text-white/60">Tap to instantly apply & preview</p>
+                    </div>
                   </div>
-                  <span className="text-xs text-white/60">Live Preview</span>
                 </div>
 
                 {/* Live Mini-Player Preview Cards */}
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3">
                   {SCENIC_THEMES.map((theme) => {
                     const selected = currentScenicId === theme.id;
                     return (
@@ -471,21 +475,32 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                         key={theme.id}
                         type="button"
                         onClick={() => handleSelectScenicTheme(theme.id)}
-                        className={`w-full p-3 rounded-2xl border text-left transition-all ${
+                        className={`w-full p-3.5 rounded-2xl border text-left transition-all relative overflow-hidden ${
                           selected
-                            ? 'border-[var(--accent)] bg-white/[0.08] shadow-lg'
-                            : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.07]'
+                            ? 'border-[var(--accent)] bg-white/[0.09] shadow-[0_0_24px_rgba(245,197,66,0.15)] ring-1 ring-[var(--accent)]'
+                            : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.07] hover:border-white/20'
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-2.5">
+                        {selected && (
+                          <div
+                            className="absolute top-0 right-0 w-24 h-24 pointer-events-none opacity-20 rounded-bl-full"
+                            style={{ background: theme.accentHex }}
+                          />
+                        )}
+                        <div className="flex items-center justify-between mb-3 relative z-10">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-white truncate">
-                              {theme.label}
+                            <p className="text-sm font-semibold text-white truncate flex items-center gap-2">
+                              <span>{theme.label}</span>
+                              {selected && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[var(--accent)] text-[var(--accent-fg)]">
+                                  Active
+                                </span>
+                              )}
                             </p>
-                            <p className="text-[11px] text-white/60 truncate">{theme.subtitle}</p>
+                            <p className="text-[11px] text-white/60 truncate mt-0.5">{theme.subtitle}</p>
                           </div>
                           {selected && (
-                            <span className="w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center shrink-0">
+                            <span className="w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center shrink-0 shadow-md">
                               <Check className="w-3.5 h-3.5" />
                             </span>
                           )}
@@ -493,12 +508,12 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
 
                         {/* Embedded Live Mini-Player Preview */}
                         <div
-                          className="rounded-xl p-2.5 border border-white/10 space-y-2"
+                          className="rounded-xl p-3 border border-white/12 space-y-2.5 relative z-10 shadow-inner"
                           style={{ background: theme.previewGradient }}
                         >
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-center gap-3">
                             <div
-                              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/15"
+                              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border border-white/20 shadow-sm"
                               style={{ backgroundColor: theme.accentSoftRgba }}
                             >
                               <Disc3 className="w-4 h-4" style={{ color: theme.accentHex }} />
@@ -513,7 +528,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               <span
-                                className="w-6 h-6 rounded-full flex items-center justify-center"
+                                className="w-6 h-6 rounded-full flex items-center justify-center shadow"
                                 style={{
                                   backgroundColor: theme.accentHex,
                                   color: theme.accentFgHex,
@@ -521,14 +536,13 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                               >
                                 <Play className="w-3 h-3 fill-current ml-0.5" />
                               </span>
-                              <SkipForward className="w-3.5 h-3.5 text-white/75" />
                             </div>
                           </div>
-                          <div className="h-1 w-full rounded-full bg-white/15 overflow-hidden">
+                          <div className="h-1 w-full rounded-full bg-white/20 overflow-hidden">
                             <div
-                              className="h-full rounded-full"
+                              className="h-full rounded-full transition-all duration-300"
                               style={{
-                                width: '58%',
+                                width: '62%',
                                 backgroundColor: theme.accentHex,
                               }}
                             />
@@ -541,9 +555,12 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
               </div>
 
               {/* Accent Color Swatches */}
-              <div className="space-y-3 pt-2 border-t border-white/10">
-                <h3 className="text-sm font-semibold text-white">Accent Color</h3>
-                <div className="flex items-center justify-between gap-2 p-3 rounded-2xl bg-white/[0.04] border border-white/10">
+              <div className="space-y-3 pt-3 border-t border-white/10">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white">Accent Hue</h3>
+                  <span className="text-[11px] text-white/60">Global UI highlight</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 p-3.5 rounded-2xl bg-white/[0.04] border border-white/10">
                   {ACCENT_OPTIONS.map((opt) => {
                     const selected = settings.accentId === opt.id;
                     return (
@@ -553,14 +570,14 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                         onClick={() => onUpdateSettings({ accentId: opt.id })}
                         aria-label={opt.label}
                         title={opt.label}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform ${
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm ${
                           selected
                             ? 'scale-110 ring-2 ring-white ring-offset-2 ring-offset-[#0A0C16]'
-                            : 'hover:scale-105 opacity-85 hover:opacity-100'
+                            : 'hover:scale-105 opacity-80 hover:opacity-100'
                         }`}
                         style={{ backgroundColor: opt.hex }}
                       >
-                        {selected && <Check className="w-4 h-4 text-white drop-shadow" />}
+                        {selected && <Check className="w-4 h-4 text-white drop-shadow-md" />}
                       </button>
                     );
                   })}
@@ -568,7 +585,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
               </div>
 
               {/* System / Auto-Theme Toggle */}
-              <div className="space-y-2 pt-2 border-t border-white/10">
+              <div className="space-y-2 pt-3 border-t border-white/10">
                 <ToggleSwitchRow
                   checked={Boolean(settings.autoTheme)}
                   onChange={(next) => onUpdateSettings({ autoTheme: next })}
