@@ -3,12 +3,14 @@ package com.ag.musicplayer
 import android.Manifest
 import android.app.Activity
 import android.app.RecoverableSecurityException
+import android.content.ClipData
 import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.core.content.FileProvider
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
@@ -624,6 +626,60 @@ class MainActivity : ComponentActivity() {
         evalJs("window.__agOnTrackDeleted?.($quotedId, $success, $quotedErr);")
     }
 
+    fun shareDeviceTrack(title: String, artist: String, contentUriStr: String, filePath: String): Boolean {
+        return try {
+            val parsedContentUri = contentUriStr.takeIf { it.isNotBlank() }?.let {
+                runCatching { Uri.parse(it) }.getOrNull()
+            }?.takeIf { it.scheme == "content" }
+            val file = filePath.takeIf { it.isNotBlank() }?.let { File(it) }?.takeIf { it.exists() }
+            val fileProviderUri = file?.let {
+                runCatching {
+                    FileProvider.getUriForFile(this, "${packageName}.fileprovider", it)
+                }.getOrNull()
+            }
+            val shareUri = parsedContentUri ?: fileProviderUri
+
+            if (shareUri != null) {
+                val detectedMime = contentResolver.getType(shareUri) ?: "audio/*"
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = detectedMime
+                    putExtra(Intent.EXTRA_STREAM, shareUri)
+                    putExtra(Intent.EXTRA_SUBJECT, title)
+                    clipData = ClipData.newUri(contentResolver, title.ifBlank { "Audio" }, shareUri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = Intent.createChooser(shareIntent, "Share ${title.ifBlank { "Audio" }}").apply {
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(chooser)
+                true
+            } else {
+                sharePlainText(title, "Listening to \"$title\" by $artist on AG Music Player")
+            }
+        } catch (e: Exception) {
+            Log.e("AGPlayer", "Failed to share audio track: ${e.message}", e)
+            false
+        }
+    }
+
+    fun sharePlainText(title: String, text: String): Boolean {
+        return try {
+            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, title)
+                putExtra(Intent.EXTRA_TEXT, text)
+            }
+            val chooser = Intent.createChooser(sendIntent, "Share ${title.ifBlank { "AG Music Player" }}").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(chooser)
+            true
+        } catch (e: Exception) {
+            Log.e("AGPlayer", "Failed to share text: ${e.message}", e)
+            false
+        }
+    }
+
     fun findInstalledIdmPackage(): String? {
         val candidates = listOf(
             "idm.internet.download.manager.plus",
@@ -848,5 +904,21 @@ class WebAppInterface(private val activity: MainActivity, private val updateMana
     @JavascriptInterface
     fun deleteDeviceTrack(trackId: String, contentUri: String, filePath: String) {
         activity.deleteDeviceTrack(trackId, contentUri, filePath)
+    }
+
+    @JavascriptInterface
+    fun shareTrack(title: String, artist: String, contentUri: String, filePath: String): Boolean {
+        activity.runOnUiThread {
+            activity.shareDeviceTrack(title, artist, contentUri, filePath)
+        }
+        return true
+    }
+
+    @JavascriptInterface
+    fun shareText(title: String, text: String): Boolean {
+        activity.runOnUiThread {
+            activity.sharePlainText(title, text)
+        }
+        return true
     }
 }

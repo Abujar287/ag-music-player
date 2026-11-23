@@ -1,8 +1,17 @@
-export type LibraryTab = 'tracks' | 'albums' | 'artists' | 'genres' | 'videos' | 'folders';
+export type LibraryTab = 'tracks' | 'albums' | 'artists' | 'genres' | 'folders' | 'favorites';
 
 export type RepeatMode = 'off' | 'one' | 'all';
 
-export type EqPresetId = 'normal' | 'bass_boost' | 'rock' | 'pop' | 'classical' | 'custom';
+export type EqPresetId =
+  | 'flat'
+  | 'normal'
+  | 'bass_boost'
+  | 'vocal'
+  | 'rock'
+  | 'electronic'
+  | 'pop'
+  | 'classical'
+  | 'custom';
 
 export interface AccentOption {
   id: string;
@@ -53,11 +62,32 @@ export interface EqualizerState {
   preset: EqPresetId;
   bands: [number, number, number, number, number]; // dB (-12 to +12) at 60Hz, 230Hz, 910Hz, 3.6kHz, 14kHz
   virtualizer: number; // 0 to 100
+  bassBoost?: number; // 0 to 100
+}
+
+export interface ScenicThemeOption {
+  id: string;
+  label: string;
+  subtitle: string;
+  fromRgba: string;
+  viaRgba: string;
+  toRgba: string;
+  surfaceRgba: string;
+  accentHex: string;
+  accentHoverHex: string;
+  accentFgHex: string;
+  accentSoftRgba: string;
+  previewGradient: string;
+  cardBgHex?: string;
 }
 
 export interface AppSettings {
   themeMode: 'dark' | 'light';
   accentId: string;
+  scenicThemeId?: string;
+  autoTheme?: boolean;
+  audioQuality?: 'lossless' | 'high' | 'balanced';
+  widgetStyle?: 'frosted' | 'obsidian' | 'vibrant';
   autoSyncPermission: boolean;
   filterShortClips: boolean;
   minDurationSec: number;

@@ -26,21 +26,27 @@ import {
   Moon,
   Maximize2,
   ChevronLeft,
+  ChevronRight,
+  ListMusic,
   ShieldCheck,
-  Video,
   RefreshCw,
+  FileAudio,
 } from 'lucide-react';
+import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { audioEngine } from './audio/AudioEngine';
+import { CategorySegmentGrid } from './components/CategorySegmentGrid';
 import {
   AddToPlaylistModal,
   EditTagModal,
   PlaylistModal,
   SleepTimerModal,
+  SongInfoModal,
   UpdateModal,
   DeleteConfirmModal,
 } from './components/Modals';
 import { NowPlayingModal } from './components/NowPlayingModal';
-import { SideDrawer } from './components/SideDrawer';
+import { ScenicBackdrop } from './components/ScenicBackdrop';
+import { DrawerSection, SideDrawer } from './components/SideDrawer';
 import { CoverImage } from './components/CoverImage';
 import { SeekBar } from './components/SeekBar';
 import {
@@ -51,7 +57,7 @@ import {
   DEFAULT_SETTINGS,
   DEFAULT_TRACKS,
   GITHUB_LATEST_API,
-  LOGO_IMAGE_URL,
+  SCENIC_THEMES,
 } from './data/defaultLibrary';
 import {
   AppSettings,
@@ -140,6 +146,7 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerSection, setDrawerSection] = useState<DrawerSection>('menu');
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
 
   // Drill-down filter for Albums, Artists, Folders, Genres, or Playlist
@@ -167,8 +174,8 @@ export default function App() {
   });
 
   // Menus & Modals
-  const [trackMenuId, setTrackMenuId] = useState<string | null>(null);
-  const [playlistMenuId, setPlaylistMenuId] = useState<string | null>(null);
+  const [menuTrack, setMenuTrack] = useState<Track | null>(null);
+  const [menuPlaylist, setMenuPlaylist] = useState<Playlist | null>(null);
   const [playlistModal, setPlaylistModal] = useState<{
     open: boolean;
     mode: 'create' | 'rename';
@@ -176,6 +183,7 @@ export default function App() {
     initialName?: string;
   }>({ open: false, mode: 'create' });
   const [editTagTrack, setEditTagTrack] = useState<Track | null>(null);
+  const [songInfoTrack, setSongInfoTrack] = useState<Track | null>(null);
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<Track | null>(null);
   const [sleepTimerOpen, setSleepTimerOpen] = useState(false);
   const [updateState, setUpdateState] = useState<UpdateFlowState>({ status: 'idle' });
@@ -216,6 +224,10 @@ export default function App() {
       setSleepTimerOpen(false);
       return true;
     }
+    if (songInfoTrack) {
+      setSongInfoTrack(null);
+      return true;
+    }
     if (editTagTrack) {
       setEditTagTrack(null);
       return true;
@@ -228,12 +240,12 @@ export default function App() {
       setPlaylistModal({ open: false, mode: 'create' });
       return true;
     }
-    if (trackMenuId) {
-      setTrackMenuId(null);
+    if (menuTrack) {
+      setMenuTrack(null);
       return true;
     }
-    if (playlistMenuId) {
-      setPlaylistMenuId(null);
+    if (menuPlaylist) {
+      setMenuPlaylist(null);
       return true;
     }
     if (nowPlayingOpen) {
@@ -501,12 +513,20 @@ export default function App() {
     } else {
       root.classList.remove('dark');
     }
-    const accent = ACCENT_OPTIONS.find((a) => a.id === settings.accentId) ?? ACCENT_OPTIONS[0];
-    root.style.setProperty('--accent', accent.hex);
-    root.style.setProperty('--accent-hover', accent.hoverHex);
-    root.style.setProperty('--accent-fg', accent.fgHex);
-    root.style.setProperty('--accent-soft', accent.softRgba);
-  }, [settings.themeMode, settings.accentId]);
+    const scenic =
+      SCENIC_THEMES.find((s) => s.id === (settings.scenicThemeId ?? 'midnight_gold')) ??
+      SCENIC_THEMES[0];
+    root.style.setProperty('--scenic-from', scenic.fromRgba);
+    root.style.setProperty('--scenic-via', scenic.viaRgba);
+    root.style.setProperty('--scenic-to', scenic.toRgba);
+    root.style.setProperty('--scenic-surface', scenic.surfaceRgba);
+
+    const accent = ACCENT_OPTIONS.find((a) => a.id === settings.accentId);
+    root.style.setProperty('--accent', accent?.hex ?? scenic.accentHex);
+    root.style.setProperty('--accent-hover', accent?.hoverHex ?? scenic.accentHoverHex);
+    root.style.setProperty('--accent-fg', accent?.fgHex ?? scenic.accentFgHex);
+    root.style.setProperty('--accent-soft', accent?.softRgba ?? scenic.accentSoftRgba);
+  }, [settings.themeMode, settings.accentId, settings.scenicThemeId]);
 
   // Sync Equalizer & Fade settings to Web Audio Engine
   useEffect(() => {
@@ -552,9 +572,9 @@ export default function App() {
     [visibleTracks]
   );
 
-  const videos = useMemo(
-    () => visibleTracks.filter((t) => t.mediaType === 'video'),
-    [visibleTracks]
+  const favoriteTracks = useMemo(
+    () => audioTracks.filter((t) => t.isFavorite),
+    [audioTracks]
   );
 
   const currentTrack = useMemo(() => {
@@ -873,18 +893,60 @@ export default function App() {
     showToast(`Deleted "${track.title}" from library`);
   };
 
+  const copyTextWithFallback = useCallback(async (text: string): Promise<boolean> => {
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // fall through to legacy copy
+    }
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return copied;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const handleShareTrack = async (track: Track) => {
+    const bridge = (window as unknown as {
+      AndroidBridge?: {
+        shareTrack?: (title: string, artist: string, contentUri: string, filePath: string) => boolean;
+      };
+    }).AndroidBridge;
+
+    if (bridge && typeof bridge.shareTrack === 'function') {
+      bridge.shareTrack(track.title, track.artist, track.contentUri ?? '', track.filePath ?? '');
+      return;
+    }
+
     const shareText = `Listening to "${track.title}" by ${track.artist} on AG Music Player`;
-    if (navigator.share) {
+    if (typeof navigator.share === 'function') {
       try {
         await navigator.share({ title: track.title, text: shareText });
         return;
-      } catch {
-        // fallback to clipboard
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
       }
     }
-    await navigator.clipboard?.writeText(shareText).catch(() => {});
-    showToast(`Share details copied for "${track.title}"`);
+    const copied = await copyTextWithFallback(shareText);
+    showToast(
+      copied
+        ? `Share details copied for "${track.title}"`
+        : `Share is only available on Android or HTTPS browser`
+    );
   };
 
   const handleSetRingtone = (track: Track) => {
@@ -938,16 +1000,34 @@ export default function App() {
       .filter(Boolean)
       .join(', ');
     const text = `AG Music Player Playlist "${pl.name}": ${names || 'Empty playlist'}`;
-    if (navigator.share) {
+
+    const bridge = (window as unknown as {
+      AndroidBridge?: {
+        shareText?: (title: string, text: string) => boolean;
+      };
+    }).AndroidBridge;
+
+    if (bridge && typeof bridge.shareText === 'function') {
+      bridge.shareText(pl.name, text);
+      return;
+    }
+
+    if (typeof navigator.share === 'function') {
       try {
         await navigator.share({ title: pl.name, text });
         return;
-      } catch {
-        // fallback
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
       }
     }
-    await navigator.clipboard?.writeText(text).catch(() => {});
-    showToast(`Playlist "${pl.name}" copied to clipboard`);
+    const copied = await copyTextWithFallback(text);
+    showToast(
+      copied
+        ? `Playlist "${pl.name}" copied to clipboard`
+        : `Unable to open share dialog`
+    );
   };
 
   const handleDeletePlaylist = (pl: Playlist) => {
@@ -1138,10 +1218,8 @@ export default function App() {
     return (
       <div
         key={track.id}
-        className={`group relative flex items-center gap-3.5 px-3 py-2.5 rounded-xl transition-colors ${
-          active
-            ? 'bg-[var(--accent-soft)]'
-            : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.04]'
+        className={`group relative flex items-center gap-3.5 px-3 py-2.5 rounded-xl border-0 transition-colors ${
+          active ? 'bg-[var(--accent-soft)]' : 'hover:bg-white/[0.08]'
         }`}
       >
         <button
@@ -1151,26 +1229,26 @@ export default function App() {
           <CoverImage
             src={track.coverUrl}
             alt={track.album}
-            className="w-12 h-12 rounded-xl object-cover shrink-0 border border-black/10 dark:border-white/10"
+            className="w-12 h-12 rounded-xl object-cover shrink-0"
             fallback={
-              <div className="w-12 h-12 rounded-xl bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
                 <Disc3
-                  className={`w-6 h-6 ${active ? 'text-[var(--accent)]' : 'text-[#6B675E] dark:text-[#9E9A90]'}`}
+                  className={`w-6 h-6 ${active ? 'text-[var(--accent)]' : 'text-[var(--accent)]/80'}`}
                 />
               </div>
             }
           />
 
           <div className="flex-1 min-w-0">
-            <p className={`text-sm font-semibold truncate ${active ? 'text-[var(--accent)]' : ''}`}>
+            <p className={`text-sm font-semibold truncate ${active ? 'text-[var(--accent)]' : 'text-white'}`}>
               {track.title}
             </p>
-            <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
+            <p className="text-xs text-white/70 truncate">
               {track.artist} · {track.album}
             </p>
           </div>
 
-          <span className="text-xs font-mono-tabular text-[#6B675E] dark:text-[#9E9A90] shrink-0">
+          <span className="text-xs font-mono-tabular tabular-nums text-white/70 shrink-0">
             {formatTime(track.durationSec)}
           </span>
         </button>
@@ -1178,158 +1256,42 @@ export default function App() {
         {/* 3-dot quick action */}
         <div className="relative shrink-0">
           <button
-            onClick={() => setTrackMenuId(trackMenuId === track.id ? null : track.id)}
+            onClick={() => setMenuTrack(track)}
             aria-label={`Options for ${track.title}`}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#6B675E] dark:text-[#9E9A90] hover:bg-black/5 dark:hover:bg-white/5"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/75 hover:text-white hover:bg-white/10"
           >
             <MoreVertical className="w-4 h-4" />
           </button>
-
-          {trackMenuId === track.id && (
-            <>
-              <div className="fixed inset-0 z-20" onClick={() => setTrackMenuId(null)} />
-              <div className="absolute right-0 top-11 z-30 w-52 rounded-2xl bg-white dark:bg-[#19191E] border border-black/10 dark:border-white/10 shadow-2xl py-1.5 text-xs font-medium">
-                <button
-                  onClick={() => {
-                    setTrackMenuId(null);
-                    toggleFavorite(track.id);
-                  }}
-                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-black/5 dark:hover:bg-white/5 text-left"
-                >
-                  <Heart
-                    className={`w-4 h-4 ${track.isFavorite ? 'fill-current text-[var(--accent)]' : ''}`}
-                  />
-                  <span>{track.isFavorite ? 'Remove Favorite' : 'Add to Favorite'}</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setTrackMenuId(null);
-                    setEditTagTrack(track);
-                  }}
-                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-black/5 dark:hover:bg-white/5 text-left"
-                >
-                  <Edit3 className="w-4 h-4 text-[var(--accent)]" />
-                  <span>Edit Tag / Info</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setTrackMenuId(null);
-                    setAddToPlaylistTrack(track);
-                  }}
-                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-black/5 dark:hover:bg-white/5 text-left"
-                >
-                  <ListPlus className="w-4 h-4 text-[var(--accent)]" />
-                  <span>Add to Playlist</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setTrackMenuId(null);
-                    handleSetRingtone(track);
-                  }}
-                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-black/5 dark:hover:bg-white/5 text-left"
-                >
-                  <BellRing className="w-4 h-4 text-[var(--accent)]" />
-                  <span>Set as Ringtone</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setTrackMenuId(null);
-                    void handleShareTrack(track);
-                  }}
-                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-black/5 dark:hover:bg-white/5 text-left"
-                >
-                  <Share2 className="w-4 h-4 text-[var(--accent)]" />
-                  <span>Share Audio File</span>
-                </button>
-                <div className="my-1 border-t border-black/10 dark:border-white/10" />
-                <button
-                  onClick={() => {
-                    setTrackMenuId(null);
-                    handleDeleteTrack(track);
-                  }}
-                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-rose-500/10 text-rose-500 text-left"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Delete from Device</span>
-                </button>
-              </div>
-            </>
-          )}
         </div>
       </div>
     );
   };
 
-  const categoryGridItems: Array<{
-    id: LibraryTab;
-    label: string;
-    countLabel: string;
-    icon: React.FC<{ className?: string }>;
-  }> = [
-    {
-      id: 'tracks',
-      label: 'Tracks',
-      countLabel: `${audioTracks.length}`,
-      icon: Music2,
-    },
-    {
-      id: 'albums',
-      label: 'Albums',
-      countLabel: `${albums.length}`,
-      icon: Disc3,
-    },
-    {
-      id: 'artists',
-      label: 'Artists',
-      countLabel: `${artists.length}`,
-      icon: User,
-    },
-    {
-      id: 'genres',
-      label: 'Genres',
-      countLabel: `${genres.length}`,
-      icon: Tag,
-    },
-    {
-      id: 'videos',
-      label: 'Videos',
-      countLabel: `${videos.length}`,
-      icon: Video,
-    },
-    {
-      id: 'folders',
-      label: 'Folders',
-      countLabel: `${folders.length}`,
-      icon: Folder,
-    },
-  ];
-
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F7F4] dark:bg-[#0B0B0D] text-[#111114] dark:text-[#F5F3EE] transition-colors">
+    <MotionConfig reducedMotion="user">
+      <div className="relative min-h-screen flex flex-col bg-[#061329] text-white overflow-x-hidden">
+      {/* Shared Scenic Background across every screen */}
+      <ScenicBackdrop />
+
       {/* Top Header */}
-      <header className="sticky top-0 z-30 backdrop-blur-md bg-[#F8F7F4]/90 dark:bg-[#0B0B0D]/90 border-b border-black/10 dark:border-white/10">
+      <header className="sticky top-0 z-30 bg-transparent border-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => setDrawerOpen(true)}
+              onClick={() => {
+                setDrawerSection('menu');
+                setDrawerOpen(true);
+              }}
               aria-label="Open Navigation Menu"
-              className="min-h-[44px] min-w-[44px] -ml-2 flex items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0"
+              className="min-h-[44px] min-w-[44px] -ml-2 flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
             >
               <Menu className="w-5 h-5" />
             </button>
 
             {!searchOpen && (
-              <div className="flex items-center gap-2.5 min-w-0">
-                <img
-                  src={LOGO_IMAGE_URL}
-                  alt="AG Music Player logo"
-                  referrerPolicy="no-referrer"
-                  className="w-8 h-8 rounded-full object-cover border border-[var(--accent)]/60 shrink-0"
-                />
-                <h1 className="font-display text-base sm:text-lg font-bold tracking-wide truncate whitespace-nowrap">
-                  AG Music Player
-                </h1>
-              </div>
+              <h1 className="text-base sm:text-lg font-bold tracking-wide text-white truncate whitespace-nowrap">
+                AG Music Player
+              </h1>
             )}
           </div>
 
@@ -1341,7 +1303,7 @@ export default function App() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search tracks, albums, artists..."
-                className="w-full px-3.5 py-2 rounded-xl bg-black/[0.05] dark:bg-white/[0.06] border border-black/10 dark:border-white/10 text-sm focus:outline-none focus:border-[var(--accent)]"
+                className="w-full px-3.5 py-2 rounded-xl bg-white/10 border border-white/20 text-sm text-white placeholder:text-white/55 focus:outline-none focus:border-[var(--accent)]"
               />
               <button
                 onClick={() => {
@@ -1349,7 +1311,7 @@ export default function App() {
                   setSearchQuery('');
                 }}
                 aria-label="Close Search"
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5 shrink-0"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1358,7 +1320,7 @@ export default function App() {
             <button
               onClick={() => setSearchOpen(true)}
               aria-label="Search Music Library"
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
             >
               <Search className="w-5 h-5" />
             </button>
@@ -1413,9 +1375,9 @@ export default function App() {
           pullStartYRef.current = null;
           setPullDistance(0);
         }}
-        className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 pt-5 pb-28 lg:pb-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+        className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 pt-5 pb-28 lg:pb-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
       >
-        {/* Left/Primary Column: Pull-to-Refresh Indicator + 6 Category Cards + Active View + Playlists */}
+        {/* Left/Primary Column: Pull-to-Refresh + 3x2 Category Grid + Active Library + List Section */}
         <div className="lg:col-span-7 xl:col-span-8 space-y-6">
           {(pullDistance > 0 || isRefreshing) && (
             <div
@@ -1445,12 +1407,12 @@ export default function App() {
 
           {/* Auto-Sync Permission Banner (only shown if permission disabled) */}
           {!settings.autoSyncPermission && (
-            <div className="p-4 rounded-2xl bg-[var(--accent-soft)] border border-[var(--accent)]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-4 rounded-2xl bg-[var(--scenic-surface,rgba(11,33,69,0.52))] backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
                 <ShieldCheck className="w-5 h-5 text-[var(--accent)] shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold">Audio Permission Required</p>
-                  <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
+                  <p className="text-sm font-semibold text-white">Audio Permission Required</p>
+                  <p className="text-xs text-white/70">
                     Grant audio storage permission to automatically sync all songs on your device.
                   </p>
                 </div>
@@ -1467,60 +1429,43 @@ export default function App() {
             </div>
           )}
 
-          {/* 2 Rows x 3 Columns Enlarged Category Grid: Tracks, Albums, Artists / Genres, Videos, Folders */}
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
-            {categoryGridItems.map((cat) => {
-              const Icon = cat.icon;
-              const active = activeTab === cat.id && !drillFilter;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => {
-                    setActiveTab(cat.id);
-                    setDrillFilter(null);
-                  }}
-                  className={`min-h-[112px] sm:min-h-[130px] p-3.5 sm:p-5 rounded-2xl border text-left flex flex-col justify-between transition-all duration-150 active:scale-[0.98] ${
-                    active
-                      ? 'border-[var(--accent)] bg-[var(--accent-soft)] shadow-md'
-                      : 'border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-[#141417] hover:border-[var(--accent)]/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div
-                      className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                        active
-                          ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
-                          : 'bg-black/10 dark:bg-white/10 text-[var(--accent)]'
-                      }`}
-                    >
-                      <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
-                    </div>
-                    <span className="text-sm sm:text-base font-bold font-mono-tabular text-[#6B675E] dark:text-[#9E9A90]">
-                      {cat.countLabel}
-                    </span>
-                  </div>
-                  <span className="text-sm sm:text-base font-bold tracking-tight mt-3 truncate">
-                    {cat.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {/* 3x2 Grid Section */}
+          <CategorySegmentGrid
+            activeTab={activeTab}
+            hasDrillFilter={Boolean(drillFilter)}
+            counts={{
+              tracks: audioTracks.length,
+              albums: albums.length,
+              artists: artists.length,
+              genres: genres.length,
+              folders: folders.length,
+              favorites: favoriteTracks.length,
+            }}
+            onSelectTab={(tab) => {
+              setActiveTab(tab);
+              setDrillFilter(null);
+            }}
+          />
 
           {/* Drill-Down Header if inside an Album, Artist, Folder, Genre, or Playlist */}
           {drillFilter && (
-            <div className="flex items-center justify-between gap-4 pb-3 border-b border-black/10 dark:border-white/10">
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="flex items-center justify-between gap-4 pb-3 border-b border-white/10"
+            >
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   onClick={() => setDrillFilter(null)}
-                  className="min-h-[40px] px-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-1 text-xs font-semibold shrink-0"
+                  className="min-h-[40px] px-2.5 rounded-xl hover:bg-white/10 flex items-center gap-1 text-xs font-semibold text-white shrink-0"
                 >
                   <ChevronLeft className="w-4 h-4" />
                   <span>Back</span>
                 </button>
                 <div className="min-w-0">
-                  <h2 className="text-base font-bold truncate">{drillFilter.label}</h2>
-                  <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
+                  <h2 className="text-base font-bold text-white truncate">{drillFilter.label}</h2>
+                  <p className="text-xs text-white/70">
                     {drillTracks.length} track{drillTracks.length === 1 ? '' : 's'}
                   </p>
                 </div>
@@ -1534,15 +1479,23 @@ export default function App() {
                   <span>Play All</span>
                 </button>
               )}
-            </div>
+            </motion.div>
           )}
 
-          {/* Library Content View */}
+          {/* Library Content View (Borderless items over scenic background) */}
           <section aria-label="Music Library">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={drillFilter ? `drill-${drillFilter.type}-${drillFilter.value}` : activeTab}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              >
             {drillFilter ? (
-              <div className="divide-y divide-black/5 dark:divide-white/5">
+              <div className="space-y-1">
                 {drillTracks.length === 0 ? (
-                  <p className="py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]">
+                  <p className="py-10 text-center text-sm text-white/70">
                     No tracks in this selection.
                   </p>
                 ) : (
@@ -1550,13 +1503,13 @@ export default function App() {
                 )}
               </div>
             ) : activeTab === 'tracks' ? (
-              <div className="divide-y divide-black/5 dark:divide-white/5">
+              <div className="space-y-1">
                 {audioTracks.length === 0 ? (
-                  <div className="py-12 text-center space-y-4">
-                    <Music2 className="w-12 h-12 mx-auto text-[var(--accent)] opacity-80" />
+                  <div className="py-10 text-center space-y-4">
+                    <Music2 className="w-11 h-11 mx-auto text-[var(--accent)] opacity-90" />
                     <div className="space-y-1">
-                      <p className="text-sm font-semibold">No audio tracks found</p>
-                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] max-w-xs mx-auto">
+                      <p className="text-sm font-semibold text-white">No audio tracks found</p>
+                      <p className="text-xs text-white/70 max-w-xs mx-auto">
                         Grant storage permission and scan your device storage for MP3, WAV, M4A, FLAC, and AAC files.
                       </p>
                     </div>
@@ -1582,9 +1535,9 @@ export default function App() {
                 )}
               </div>
             ) : activeTab === 'albums' ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
                 {albums.length === 0 ? (
-                  <div className="col-span-full py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]">
+                  <div className="col-span-full py-10 text-center text-sm text-white/70">
                     No albums found.
                   </div>
                 ) : (
@@ -1594,22 +1547,23 @@ export default function App() {
                       onClick={() =>
                         setDrillFilter({ type: 'album', value: alb.name, label: alb.name })
                       }
-                      className="group text-left rounded-2xl bg-black/[0.03] dark:bg-[#141417] border border-black/10 dark:border-white/10 p-3 hover:border-[var(--accent)]/60 transition-colors"
+                      style={{ backgroundColor: 'var(--scenic-surface, rgba(11, 33, 69, 0.52))' }}
+                      className="group text-left rounded-2xl border-0 backdrop-blur-md p-3 hover:bg-white/[0.12] transition-colors"
                     >
-                      <div className="aspect-square rounded-xl overflow-hidden bg-black/10 dark:bg-white/10 mb-3">
+                      <div className="aspect-square rounded-xl overflow-hidden bg-white/10 mb-3">
                         <CoverImage
                           src={alb.coverUrl}
                           alt={alb.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           fallback={
                             <div className="w-full h-full flex items-center justify-center">
-                              <Disc3 className="w-10 h-10 text-[var(--accent)] opacity-70" />
+                              <Disc3 className="w-10 h-10 text-[var(--accent)] opacity-80" />
                             </div>
                           }
                         />
                       </div>
-                      <p className="text-sm font-semibold truncate">{alb.name}</p>
-                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
+                      <p className="text-sm font-semibold text-white truncate">{alb.name}</p>
+                      <p className="text-xs text-white/70 truncate">
                         {alb.artist} · {alb.count} tracks
                       </p>
                     </button>
@@ -1617,9 +1571,9 @@ export default function App() {
                 )}
               </div>
             ) : activeTab === 'artists' ? (
-              <div className="divide-y divide-black/5 dark:divide-white/5">
+              <div className="space-y-1">
                 {artists.length === 0 ? (
-                  <div className="py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]">
+                  <div className="py-10 text-center text-sm text-white/70">
                     No artists found.
                   </div>
                 ) : (
@@ -1629,21 +1583,21 @@ export default function App() {
                       onClick={() =>
                         setDrillFilter({ type: 'artist', value: art.name, label: art.name })
                       }
-                      className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] rounded-xl text-left min-h-[56px]"
+                      className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-white/[0.08] rounded-xl border-0 text-left min-h-[56px]"
                     >
                       <CoverImage
                         src={art.coverUrl}
                         alt={art.name}
-                        className="w-11 h-11 rounded-full object-cover shrink-0 border border-black/10 dark:border-white/10"
+                        className="w-11 h-11 rounded-full object-cover shrink-0"
                         fallback={
-                          <div className="w-11 h-11 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
+                          <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
                             <User className="w-5 h-5 text-[var(--accent)]" />
                           </div>
                         }
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate">{art.name}</p>
-                        <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
+                        <p className="text-sm font-semibold text-white truncate">{art.name}</p>
+                        <p className="text-xs text-white/70">
                           {art.albums.size} album{art.albums.size === 1 ? '' : 's'} ·{' '}
                           {art.trackCount} tracks
                         </p>
@@ -1653,9 +1607,9 @@ export default function App() {
                 )}
               </div>
             ) : activeTab === 'folders' ? (
-              <div className="divide-y divide-black/5 dark:divide-white/5">
+              <div className="space-y-1">
                 {folders.length === 0 ? (
-                  <div className="py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]">
+                  <div className="py-10 text-center text-sm text-white/70">
                     No folders found.
                   </div>
                 ) : (
@@ -1665,67 +1619,39 @@ export default function App() {
                       onClick={() =>
                         setDrillFilter({ type: 'folder', value: fld.path, label: fld.name })
                       }
-                      className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] rounded-xl text-left min-h-[56px]"
+                      className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-white/[0.08] rounded-xl border-0 text-left min-h-[56px]"
                     >
-                      <div className="w-11 h-11 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center shrink-0">
+                      <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
                         <Folder className="w-5 h-5 text-[var(--accent)]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate">{fld.name}</p>
+                        <p className="text-sm font-semibold text-white truncate">{fld.name}</p>
                       </div>
-                      <span className="text-xs font-mono-tabular text-[#6B675E] dark:text-[#9E9A90] shrink-0">
+                      <span className="text-xs font-mono-tabular text-white/70 shrink-0">
                         {fld.count} {fld.count === 1 ? 'track' : 'tracks'}
                       </span>
                     </button>
                   ))
                 )}
               </div>
-            ) : activeTab === 'videos' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {videos.length === 0 ? (
-                  <div className="col-span-full py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]">
-                    No music videos found.
+            ) : activeTab === 'favorites' ? (
+              <div className="space-y-1">
+                {favoriteTracks.length === 0 ? (
+                  <div className="py-10 text-center space-y-2">
+                    <Heart className="w-10 h-10 mx-auto text-[var(--accent)] opacity-80" />
+                    <p className="text-sm font-semibold text-white">No favorite tracks yet</p>
+                    <p className="text-xs text-white/70">
+                      Tap the heart icon on any track to keep it here.
+                    </p>
                   </div>
                 ) : (
-                  videos.map((vid) => (
-                    <button
-                      key={vid.id}
-                      onClick={() => {
-                        void playTrack(vid, videos);
-                        setNowPlayingOpen(true);
-                      }}
-                      className="group text-left rounded-2xl bg-black/[0.03] dark:bg-[#141417] border border-black/10 dark:border-white/10 overflow-hidden hover:border-[var(--accent)]/60 transition-colors"
-                    >
-                      <div className="aspect-video relative bg-black/20 overflow-hidden">
-                        <CoverImage
-                          src={vid.coverUrl}
-                          alt={vid.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          fallback={
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Video className="w-10 h-10 text-[var(--accent)]" />
-                            </div>
-                          }
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                        <span className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/75 text-white text-[11px] font-mono-tabular">
-                          {formatTime(vid.durationSec)}
-                        </span>
-                      </div>
-                      <div className="p-3.5">
-                        <p className="text-sm font-semibold truncate">{vid.title}</p>
-                        <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
-                          {vid.artist} · {vid.folder}
-                        </p>
-                      </div>
-                    </button>
-                  ))
+                  favoriteTracks.map(renderTrackRow)
                 )}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {genres.length === 0 ? (
-                  <div className="col-span-full py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]">
+                  <div className="col-span-full py-10 text-center text-sm text-white/70">
                     No genres found.
                   </div>
                 ) : (
@@ -1735,12 +1661,13 @@ export default function App() {
                       onClick={() =>
                         setDrillFilter({ type: 'genre', value: g.name, label: g.name })
                       }
-                      className="p-4 rounded-2xl bg-black/[0.03] dark:bg-[#141417] border border-black/10 dark:border-white/10 hover:border-[var(--accent)]/60 text-left space-y-2 transition-colors"
+                      style={{ backgroundColor: 'var(--scenic-surface, rgba(11, 33, 69, 0.52))' }}
+                      className="p-4 rounded-2xl border-0 backdrop-blur-md hover:bg-white/[0.12] text-left space-y-2 transition-colors"
                     >
                       <Tag className="w-5 h-5 text-[var(--accent)]" />
                       <div>
-                        <p className="text-sm font-semibold truncate">{g.name}</p>
-                        <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
+                        <p className="text-sm font-semibold text-white truncate">{g.name}</p>
+                        <p className="text-xs text-white/70">
                           {g.count} track{g.count === 1 ? '' : 's'}
                         </p>
                       </div>
@@ -1749,112 +1676,94 @@ export default function App() {
                 )}
               </div>
             )}
+              </motion.div>
+            </AnimatePresence>
           </section>
 
-          {/* Playlists Section */}
-          <section className="pt-4 border-t border-black/10 dark:border-white/10 space-y-3">
+          {/* List Section (Playlists - borderless items over uniform background) */}
+          <section id="playlists-list-section" className="pt-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold">Playlists</h2>
-              <button
-                onClick={() => setPlaylistModal({ open: true, mode: 'create' })}
-                aria-label="Create New Playlist"
-                className="min-h-[40px] px-3.5 rounded-xl bg-black/[0.05] dark:bg-white/[0.06] hover:bg-black/10 dark:hover:bg-white/10 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-              >
-                <Plus className="w-4 h-4 text-[var(--accent)]" />
-                <span>New Playlist</span>
-              </button>
+              <div className="flex items-baseline gap-2">
+                <h2 className="text-base font-bold text-white">Playlists</h2>
+                <span className="text-xs font-mono-tabular tabular-nums text-white/70">
+                  ({playlists.length})
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPlaylistModal({ open: true, mode: 'create' })}
+                  aria-label="Create New Playlist"
+                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-[var(--accent)] hover:bg-white/10 transition-colors"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (playlists.length > 0) {
+                      setDrillFilter({
+                        type: 'playlist',
+                        value: playlists[0].id,
+                        label: playlists[0].name,
+                      });
+                    } else {
+                      setPlaylistModal({ open: true, mode: 'create' });
+                    }
+                  }}
+                  aria-label="Open Playlists"
+                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {playlists.length === 0 ? (
-                <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] py-4">
-                  No playlists yet. Tap + to create one.
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setPlaylistModal({ open: true, mode: 'create' })}
+                  className="w-full flex items-center gap-3.5 px-3 py-2.5 rounded-2xl border-0 bg-transparent hover:bg-white/[0.06] text-left transition-colors"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
+                    <Plus className="w-5 h-5 text-[var(--accent)]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">No playlists yet</p>
+                    <p className="text-xs text-white/70 truncate">Tap + to create a playlist</p>
+                  </div>
+                </button>
               ) : (
                 playlists.map((pl) => (
                   <div
                     key={pl.id}
-                    className="relative flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl bg-black/[0.03] dark:bg-[#141417] border border-black/10 dark:border-white/10"
+                    className="relative flex items-center justify-between gap-3 px-3 py-2 rounded-2xl border-0 bg-transparent hover:bg-white/[0.06] transition-colors"
                   >
                     <button
                       onClick={() =>
                         setDrillFilter({ type: 'playlist', value: pl.id, label: pl.name })
                       }
-                      className="flex-1 min-w-0 text-left min-h-[40px] flex flex-col justify-center"
+                      className="flex flex-1 items-center gap-3.5 min-w-0 text-left min-h-[44px]"
                     >
-                      <p className="text-sm font-semibold truncate">{pl.name}</p>
-                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
-                        {pl.trackIds.length} track{pl.trackIds.length === 1 ? '' : 's'}
-                      </p>
+                      <div className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center shrink-0">
+                        <ListMusic className="w-5 h-5 text-[var(--accent)]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{pl.name}</p>
+                        <p className="text-xs text-white/70">
+                          {pl.trackIds.length} {pl.trackIds.length === 1 ? 'track' : 'tracks'}
+                        </p>
+                      </div>
                     </button>
 
                     <div className="relative shrink-0">
                       <button
-                        onClick={() =>
-                          setPlaylistMenuId(playlistMenuId === pl.id ? null : pl.id)
-                        }
+                        onClick={() => setMenuPlaylist(pl)}
                         aria-label={`Playlist options for ${pl.name}`}
-                        className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5"
+                        className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/75 hover:text-white hover:bg-white/10"
                       >
                         <MoreVertical className="w-4 h-4" />
                       </button>
-
-                      {playlistMenuId === pl.id && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-20"
-                            onClick={() => setPlaylistMenuId(null)}
-                          />
-                          <div className="absolute right-0 bottom-11 z-30 w-44 rounded-2xl bg-white dark:bg-[#19191E] border border-black/10 dark:border-white/10 shadow-2xl py-1.5 text-xs font-medium">
-                            <button
-                              onClick={() => {
-                                setPlaylistMenuId(null);
-                                handlePlayPlaylist(pl);
-                              }}
-                              className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-black/5 dark:hover:bg-white/5 text-left"
-                            >
-                              <Play className="w-3.5 h-3.5 text-[var(--accent)]" />
-                              <span>Play</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setPlaylistMenuId(null);
-                                void handleSharePlaylist(pl);
-                              }}
-                              className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-black/5 dark:hover:bg-white/5 text-left"
-                            >
-                              <Share2 className="w-3.5 h-3.5 text-[var(--accent)]" />
-                              <span>Share</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setPlaylistMenuId(null);
-                                setPlaylistModal({
-                                  open: true,
-                                  mode: 'rename',
-                                  playlistId: pl.id,
-                                  initialName: pl.name,
-                                });
-                              }}
-                              className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-black/5 dark:hover:bg-white/5 text-left"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-[var(--accent)]" />
-                              <span>Rename / Edit</span>
-                            </button>
-                            <div className="my-1 border-t border-black/10 dark:border-white/10" />
-                            <button
-                              onClick={() => {
-                                setPlaylistMenuId(null);
-                                handleDeletePlaylist(pl);
-                              }}
-                              className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-rose-500/10 text-rose-500 text-left"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Remove / Delete</span>
-                            </button>
-                          </div>
-                        </>
-                      )}
                     </div>
                   </div>
                 ))
@@ -1865,14 +1774,14 @@ export default function App() {
 
         {/* Desktop Right Column: Live Now Playing Studio Deck */}
         {currentTrack && (
-          <aside className="hidden lg:flex lg:col-span-5 xl:col-span-4 sticky top-20 flex-col rounded-3xl bg-black/[0.03] dark:bg-[#141417] border border-black/10 dark:border-white/10 p-6 space-y-5 shadow-xl">
+          <aside className="hidden lg:flex lg:col-span-5 xl:col-span-4 sticky top-20 flex-col rounded-3xl bg-black/25 backdrop-blur-xl border border-white/10 p-6 space-y-5 shadow-2xl text-white">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B675E] dark:text-[#9E9A90]">
+              <span className="text-xs font-semibold uppercase tracking-wider text-white/70">
                 Now Playing
               </span>
               <button
                 onClick={() => setNowPlayingOpen(true)}
-                className="px-3 py-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-xs font-medium flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-xl hover:bg-white/10 text-xs font-medium text-white flex items-center gap-1.5"
               >
                 <Maximize2 className="w-3.5 h-3.5 text-[var(--accent)]" />
                 <span>Full Player</span>
@@ -1883,7 +1792,7 @@ export default function App() {
             <div className="flex justify-center py-2">
               <div
                 onClick={() => setNowPlayingOpen(true)}
-                className="w-52 h-52 rounded-full p-1.5 border-2 border-[var(--accent)]/40 bg-[#141417] cursor-pointer shadow-2xl"
+                className="w-52 h-52 rounded-full p-1.5 border-2 border-[var(--accent)]/45 bg-black/30 cursor-pointer shadow-2xl"
               >
                 <CoverImage
                   src={currentTrack.coverUrl}
@@ -1891,7 +1800,7 @@ export default function App() {
                   className={`w-full h-full rounded-full object-cover ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}
                   fallback={
                     <div
-                      className={`w-full h-full rounded-full bg-[#1C1C21] flex items-center justify-center ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}
+                      className={`w-full h-full rounded-full bg-white/[0.06] flex items-center justify-center ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}
                     >
                       <Disc3 className="w-20 h-20 text-[var(--accent)]" />
                     </div>
@@ -1904,25 +1813,23 @@ export default function App() {
             <div className="text-center space-y-1 overflow-hidden">
               <div className="overflow-hidden whitespace-nowrap">
                 <div className="marquee-track">
-                  <span className="text-base font-bold px-6">{currentTrack.title}</span>
-                  <span className="text-base font-bold px-6" aria-hidden="true">
+                  <span className="text-base font-bold text-white px-6">{currentTrack.title}</span>
+                  <span className="text-base font-bold text-white px-6" aria-hidden="true">
                     {currentTrack.title}
                   </span>
                 </div>
               </div>
-              <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
+              <p className="text-xs text-white/70 truncate">
                 {currentTrack.artist} · {currentTrack.album}
               </p>
             </div>
 
             {/* 1st Row: Favorite, Sleep Timer, 3-Dot Expand */}
-            <div className="flex items-center justify-around py-2 border-y border-black/10 dark:border-white/10 text-xs">
+            <div className="flex items-center justify-around py-2 border-y border-white/15 text-xs">
               <button
                 onClick={() => toggleFavorite(currentTrack.id)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${
-                  currentTrack.isFavorite
-                    ? 'text-[var(--accent)]'
-                    : 'text-[#6B675E] dark:text-[#9E9A90]'
+                  currentTrack.isFavorite ? 'text-[var(--accent)]' : 'text-white/75'
                 }`}
               >
                 <Heart className={`w-4 h-4 ${currentTrack.isFavorite ? 'fill-current' : ''}`} />
@@ -1931,9 +1838,7 @@ export default function App() {
               <button
                 onClick={() => setSleepTimerOpen(true)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${
-                  sleepTimer.active
-                    ? 'text-[var(--accent)]'
-                    : 'text-[#6B675E] dark:text-[#9E9A90]'
+                  sleepTimer.active ? 'text-[var(--accent)]' : 'text-white/75'
                 }`}
               >
                 <Moon className="w-4 h-4" />
@@ -1948,7 +1853,7 @@ export default function App() {
               <button
                 onClick={() => setNowPlayingOpen(true)}
                 aria-label="More Options"
-                className="p-2 rounded-lg text-[#6B675E] dark:text-[#9E9A90] hover:bg-black/5 dark:hover:bg-white/5"
+                className="p-2 rounded-lg text-white/75 hover:bg-white/10"
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
@@ -1966,7 +1871,7 @@ export default function App() {
                 onPreviewChange={setDesktopScrubSec}
                 ariaLabel="Seek track"
               />
-              <div className="flex justify-between text-[11px] font-mono-tabular text-[#6B675E] dark:text-[#9E9A90]">
+              <div className="flex justify-between text-[11px] font-mono-tabular text-white/70">
                 <span>{formatTime(desktopScrubSec !== null ? desktopScrubSec : positionSec)}</span>
                 <span>{formatTime(currentTrack.durationSec)}</span>
               </div>
@@ -1978,9 +1883,7 @@ export default function App() {
                 onClick={() => setShuffle((s) => !s)}
                 aria-label="Shuffle"
                 className={`p-2.5 rounded-xl transition-colors ${
-                  shuffle
-                    ? 'text-[var(--accent)] bg-[var(--accent-soft)]'
-                    : 'text-[#6B675E] dark:text-[#9E9A90]'
+                  shuffle ? 'text-[var(--accent)] bg-[var(--accent-soft)]' : 'text-white/75'
                 }`}
               >
                 <Shuffle className="w-4 h-4" />
@@ -1988,7 +1891,7 @@ export default function App() {
               <button
                 onClick={() => void handlePrev()}
                 aria-label="Previous"
-                className="p-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5"
+                className="p-2.5 rounded-xl text-white hover:bg-white/10"
               >
                 <SkipBack className="w-5 h-5 fill-current" />
               </button>
@@ -2006,7 +1909,7 @@ export default function App() {
               <button
                 onClick={() => void handleNext(false)}
                 aria-label="Next"
-                className="p-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5"
+                className="p-2.5 rounded-xl text-white hover:bg-white/10"
               >
                 <SkipForward className="w-5 h-5 fill-current" />
               </button>
@@ -2016,9 +1919,7 @@ export default function App() {
                 }
                 aria-label="Repeat"
                 className={`p-2.5 rounded-xl transition-colors ${
-                  repeatMode !== 'off'
-                    ? 'text-[var(--accent)] bg-[var(--accent-soft)]'
-                    : 'text-[#6B675E] dark:text-[#9E9A90]'
+                  repeatMode !== 'off' ? 'text-[var(--accent)] bg-[var(--accent-soft)]' : 'text-white/75'
                 }`}
               >
                 {repeatMode === 'one' ? (
@@ -2034,7 +1935,7 @@ export default function App() {
 
       {/* Mobile Persistent Bottom Mini-Player */}
       {currentTrack && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-black/10 dark:border-white/10 bg-[#F8F7F4]/95 dark:bg-[#141417]/95 backdrop-blur-md">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-black/35 backdrop-blur-xl text-white">
           <SeekBar
             variant="mini"
             positionSec={positionSec}
@@ -2053,16 +1954,16 @@ export default function App() {
               <CoverImage
                 src={currentTrack.coverUrl}
                 alt={currentTrack.album}
-                className="w-11 h-11 rounded-full object-cover shrink-0 border border-[var(--accent)]/40"
+                className="w-11 h-11 rounded-full object-cover shrink-0 border border-[var(--accent)]/50"
                 fallback={
-                  <div className="w-11 h-11 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center shrink-0">
                     <Disc3 className="w-5 h-5 text-[var(--accent)]" />
                   </div>
                 }
               />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold truncate">{currentTrack.title}</p>
-                <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
+                <p className="text-sm font-semibold text-white truncate">{currentTrack.title}</p>
+                <p className="text-xs text-white/70 truncate">
                   {currentTrack.artist}
                 </p>
               </div>
@@ -2083,7 +1984,7 @@ export default function App() {
               <button
                 onClick={() => void handleNext(false)}
                 aria-label="Next track"
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10"
               >
                 <SkipForward className="w-5 h-5" />
               </button>
@@ -2095,6 +1996,7 @@ export default function App() {
       {/* Side Drawer */}
       <SideDrawer
         open={drawerOpen}
+        initialSection={drawerSection}
         onClose={() => setDrawerOpen(false)}
         settings={settings}
         onUpdateSettings={(patch) => setSettings((prev) => ({ ...prev, ...patch }))}
@@ -2105,6 +2007,7 @@ export default function App() {
           void handleCheckUpdate();
         }}
         currentTrack={currentTrack}
+        positionSec={positionSec}
         isPlaying={isPlaying}
         onTogglePlay={() => void handleTogglePlay()}
         onNext={() => void handleNext(false)}
@@ -2145,6 +2048,17 @@ export default function App() {
         }
         onToggleFavorite={toggleFavorite}
         onOpenSleepTimer={() => setSleepTimerOpen(true)}
+        onGoToAlbum={(t) => {
+          setNowPlayingOpen(false);
+          setActiveTab('albums');
+          setDrillFilter({ type: 'album', value: t.album, label: t.album });
+        }}
+        onGoToArtist={(t) => {
+          setNowPlayingOpen(false);
+          setActiveTab('artists');
+          setDrillFilter({ type: 'artist', value: t.artist, label: t.artist });
+        }}
+        onOpenSongInfo={(t) => setSongInfoTrack(t)}
         onOpenEditTag={(t) => setEditTagTrack(t)}
         onOpenAddToPlaylist={(t) => setAddToPlaylistTrack(t)}
         onSetRingtone={handleSetRingtone}
@@ -2175,6 +2089,12 @@ export default function App() {
         track={editTagTrack}
         onClose={() => setEditTagTrack(null)}
         onSave={handleSaveTrackTags}
+      />
+
+      <SongInfoModal
+        track={songInfoTrack}
+        onClose={() => setSongInfoTrack(null)}
+        onEditTags={(t) => setEditTagTrack(t)}
       />
 
       <SleepTimerModal
@@ -2219,12 +2139,250 @@ export default function App() {
         onConfirmDelete={executeDeleteTrack}
       />
 
+      {/* Full-Visibility Track 3-Dot Action Sheet */}
+      {menuTrack && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setMenuTrack(null)}
+          />
+          <div className="relative z-10 w-full max-w-md max-h-[86vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-[#0A0B14]/92 backdrop-blur-2xl text-white border border-white/10 shadow-2xl p-4 pb-6 space-y-3">
+            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto sm:hidden" />
+            <div className="flex items-center gap-3 pb-3 border-b border-white/10">
+              <CoverImage
+                src={menuTrack.coverUrl}
+                alt={menuTrack.album}
+                className="w-12 h-12 rounded-xl object-cover shrink-0 border border-white/15"
+                fallback={
+                  <div className="w-12 h-12 rounded-xl bg-white/[0.07] border border-white/10 flex items-center justify-center shrink-0">
+                    <Disc3 className="w-6 h-6 text-[var(--accent)]" />
+                  </div>
+                }
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white truncate">{menuTrack.title}</p>
+                <p className="text-xs text-white/65 truncate">
+                  {menuTrack.artist} · {menuTrack.album} · {formatTime(menuTrack.durationSec)}
+                </p>
+              </div>
+              <button
+                onClick={() => setMenuTrack(null)}
+                aria-label="Close options"
+                className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-white/80 hover:text-white hover:bg-white/10 shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1 text-sm font-medium">
+              <button
+                onClick={() => {
+                  const target = menuTrack;
+                  setMenuTrack(null);
+                  toggleFavorite(target.id);
+                }}
+                className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 hover:bg-white/[0.08] text-left text-white transition-colors"
+              >
+                <Heart
+                  className={`w-4 h-4 shrink-0 ${
+                    menuTrack.isFavorite ? 'fill-current text-[var(--accent)]' : 'text-[var(--accent)]'
+                  }`}
+                />
+                <span>{menuTrack.isFavorite ? 'Remove Favorite' : 'Add to Favorite'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  const target = menuTrack;
+                  setMenuTrack(null);
+                  setAddToPlaylistTrack(target);
+                }}
+                className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 hover:bg-white/[0.08] text-left text-white transition-colors"
+              >
+                <ListPlus className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                <span>Add to Playlist</span>
+              </button>
+              <button
+                onClick={() => {
+                  const target = menuTrack;
+                  setMenuTrack(null);
+                  setActiveTab('albums');
+                  setDrillFilter({ type: 'album', value: target.album, label: target.album });
+                }}
+                className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 hover:bg-white/[0.08] text-left text-white transition-colors"
+              >
+                <Disc3 className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                <span>Go to Album</span>
+              </button>
+              <button
+                onClick={() => {
+                  const target = menuTrack;
+                  setMenuTrack(null);
+                  setActiveTab('artists');
+                  setDrillFilter({ type: 'artist', value: target.artist, label: target.artist });
+                }}
+                className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 hover:bg-white/[0.08] text-left text-white transition-colors"
+              >
+                <User className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                <span>Go to Artist</span>
+              </button>
+              <button
+                onClick={() => {
+                  setMenuTrack(null);
+                  setSleepTimerOpen(true);
+                }}
+                className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 hover:bg-white/[0.08] text-left text-white transition-colors"
+              >
+                <Moon className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                <span>Sleep Timer</span>
+              </button>
+              <button
+                onClick={() => {
+                  const target = menuTrack;
+                  setMenuTrack(null);
+                  void handleShareTrack(target);
+                }}
+                className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 hover:bg-white/[0.08] text-left text-white transition-colors"
+              >
+                <Share2 className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                <span>Share</span>
+              </button>
+              <button
+                onClick={() => {
+                  const target = menuTrack;
+                  setMenuTrack(null);
+                  setSongInfoTrack(target);
+                }}
+                className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl flex items-center gap-3.5 hover:bg-white/[0.08] text-left text-white transition-colors"
+              >
+                <FileAudio className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                <span>Song Info</span>
+              </button>
+              <div className="my-2 border-t border-white/10" />
+              <button
+                onClick={() => {
+                  const target = menuTrack;
+                  setMenuTrack(null);
+                  setEditTagTrack(target);
+                }}
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl flex items-center gap-3.5 hover:bg-white/[0.08] text-left text-white/85 transition-colors"
+              >
+                <Edit3 className="w-4 h-4 text-white/65 shrink-0" />
+                <span>Edit Tag / Info</span>
+              </button>
+              <button
+                onClick={() => {
+                  const target = menuTrack;
+                  setMenuTrack(null);
+                  handleSetRingtone(target);
+                }}
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl flex items-center gap-3.5 hover:bg-white/[0.08] text-left text-white/85 transition-colors"
+              >
+                <BellRing className="w-4 h-4 text-white/65 shrink-0" />
+                <span>Set as Ringtone</span>
+              </button>
+              <button
+                onClick={() => {
+                  const target = menuTrack;
+                  setMenuTrack(null);
+                  handleDeleteTrack(target);
+                }}
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl flex items-center gap-3.5 hover:bg-rose-500/15 text-rose-400 text-left transition-colors"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
+                <span>Delete from Device</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-Visibility Playlist 3-Dot Action Sheet */}
+      {menuPlaylist && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4">
+          <div
+            className="fixed inset-0 bg-black/65 backdrop-blur-sm"
+            onClick={() => setMenuPlaylist(null)}
+          />
+          <div className="relative z-10 w-full max-w-md max-h-[85vh] overflow-y-auto rounded-3xl bg-[#071836]/95 backdrop-blur-xl text-white border border-white/15 shadow-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/15">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-white truncate">{menuPlaylist.name}</p>
+                <p className="text-xs text-white/70">
+                  {menuPlaylist.trackIds.length} track{menuPlaylist.trackIds.length === 1 ? '' : 's'}
+                </p>
+              </div>
+              <button
+                onClick={() => setMenuPlaylist(null)}
+                aria-label="Close playlist options"
+                className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1 text-sm font-medium">
+              <button
+                onClick={() => {
+                  const target = menuPlaylist;
+                  setMenuPlaylist(null);
+                  handlePlayPlaylist(target);
+                }}
+                className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl flex items-center gap-3 hover:bg-white/10 text-left text-white"
+              >
+                <Play className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                <span>Play Playlist</span>
+              </button>
+              <button
+                onClick={() => {
+                  const target = menuPlaylist;
+                  setMenuPlaylist(null);
+                  void handleSharePlaylist(target);
+                }}
+                className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl flex items-center gap-3 hover:bg-white/10 text-left text-white"
+              >
+                <Share2 className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                <span>Share Playlist</span>
+              </button>
+              <button
+                onClick={() => {
+                  const target = menuPlaylist;
+                  setMenuPlaylist(null);
+                  setPlaylistModal({
+                    open: true,
+                    mode: 'rename',
+                    playlistId: target.id,
+                    initialName: target.name,
+                  });
+                }}
+                className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl flex items-center gap-3 hover:bg-white/10 text-left text-white"
+              >
+                <Edit3 className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                <span>Rename / Edit</span>
+              </button>
+              <div className="my-1.5 border-t border-white/15" />
+              <button
+                onClick={() => {
+                  const target = menuPlaylist;
+                  setMenuPlaylist(null);
+                  handleDeletePlaylist(target);
+                }}
+                className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl flex items-center gap-3 hover:bg-rose-500/15 text-rose-400 text-left"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
+                <span>Remove / Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Feedback */}
       {toast && (
-        <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[#19191E] text-[#F5F3EE] border border-[var(--accent)]/40 text-xs font-medium shadow-2xl pointer-events-none whitespace-nowrap">
+        <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[#071836]/95 backdrop-blur-md text-white border border-[var(--accent)]/40 text-xs font-medium shadow-2xl pointer-events-none whitespace-nowrap">
           {toast}
         </div>
       )}
     </div>
+    </MotionConfig>
   );
 }

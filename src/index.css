@@ -2,16 +2,22 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --accent: #D4AF37;
-  --accent-hover: #E5C158;
-  --accent-fg: #0B0B0D;
-  --accent-soft: rgba(212, 175, 55, 0.14);
+  --accent: #F5C542;
+  --accent-hover: #FFD55E;
+  --accent-fg: #071836;
+  --accent-soft: rgba(245, 197, 66, 0.16);
+  --scenic-from: rgba(6, 20, 48, 0.62);
+  --scenic-via: rgba(9, 29, 64, 0.56);
+  --scenic-to: rgba(5, 16, 40, 0.90);
+  --scenic-surface: rgba(8, 25, 58, 0.48);
 }
 
 @layer base {
   html,
   body {
     overscroll-behavior-y: contain;
+    background-color: #061329;
+    color: #ffffff;
   }
 
   body {

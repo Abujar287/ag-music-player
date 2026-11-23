@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   X,
   Palette,
@@ -6,8 +6,6 @@ import {
   LayoutGrid,
   Settings as SettingsIcon,
   RefreshCw,
-  Sun,
-  Moon,
   Check,
   Play,
   Pause,
@@ -17,6 +15,9 @@ import {
   ChevronRight,
   ChevronLeft,
   ShieldCheck,
+  Sparkles,
+  FolderSearch,
+  Info,
 } from 'lucide-react';
 import {
   ACCENT_OPTIONS,
@@ -24,14 +25,18 @@ import {
   EQ_FREQUENCIES,
   EQ_PRESETS,
   LOGO_IMAGE_URL,
+  SCENIC_THEMES,
 } from '../data/defaultLibrary';
 import { AppSettings, EqualizerState, EqPresetId, Track } from '../types/music';
+import { formatTime } from '../utils/formatters';
 import { CoverImage } from './CoverImage';
+import { ScenicBackdrop } from './ScenicBackdrop';
 
-type DrawerSection = 'menu' | 'theme' | 'equalizer' | 'widget' | 'settings';
+export type DrawerSection = 'menu' | 'theme' | 'equalizer' | 'widget' | 'settings';
 
 interface SideDrawerProps {
   open: boolean;
+  initialSection?: DrawerSection;
   onClose: () => void;
   settings: AppSettings;
   onUpdateSettings: (patch: Partial<AppSettings>) => void;
@@ -39,6 +44,7 @@ interface SideDrawerProps {
   onUpdateEqualizer: (next: EqualizerState) => void;
   onCheckUpdate: () => void;
   currentTrack: Track | null;
+  positionSec?: number;
   isPlaying: boolean;
   onTogglePlay: () => void;
   onNext: () => void;
@@ -54,32 +60,218 @@ const MENU_LIST: Array<{
 }> = [
   {
     id: 'theme',
-    label: 'Theme',
-    subtitle: 'Dark / Light mode & accent colors',
+    label: 'Appearance & Themes',
+    subtitle: 'Dark, OLED Black, Dynamic Accent & previews',
     icon: Palette,
   },
   {
     id: 'equalizer',
     label: 'Equalizer',
-    subtitle: '5-band audio EQ presets & virtualizer',
+    subtitle: '5-band DSP curve, presets & bass boost',
     icon: Sliders,
   },
   {
     id: 'widget',
-    label: 'Widget',
-    subtitle: 'Home screen music widget previews',
+    label: 'Home Screen Widget',
+    subtitle: '2×2 & 4×2 widget styles',
     icon: LayoutGrid,
   },
   {
     id: 'settings',
     label: 'Settings',
-    subtitle: 'Auto-sync, playback & lock screen controls',
+    subtitle: 'Audio, playback, library & about',
     icon: SettingsIcon,
   },
 ];
 
+const SCENIC_ACCENT_MAP: Record<string, string> = {
+  midnight_gold: 'gold',
+  obsidian_dark: 'violet',
+  oled_black: 'cyan',
+  aurora_gradient: 'cyan',
+  dynamic_tint: 'violet',
+};
+
+const DISPLAY_EQ_PRESETS: EqPresetId[] = [
+  'flat',
+  'bass_boost',
+  'vocal',
+  'rock',
+  'electronic',
+  'custom',
+];
+
+function buildSmoothCurvePath(points: Array<{ x: number; y: number }>): string {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? i : i - 1];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+
+interface VerticalEqSliderProps {
+  freq: string;
+  db: number;
+  disabled: boolean;
+  onChange: (nextDb: number) => void;
+}
+
+const VerticalEqSlider: React.FC<VerticalEqSliderProps> = ({
+  freq,
+  db,
+  disabled,
+  onChange,
+}) => {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef(false);
+
+  const updateFromClientY = (clientY: number) => {
+    const el = trackRef.current;
+    if (!el || disabled) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.height <= 0) return;
+    const ratio = Math.min(1, Math.max(0, 1 - (clientY - rect.top) / rect.height));
+    const nextDb = Math.round(ratio * 24 - 12);
+    if (nextDb !== db) {
+      onChange(nextDb);
+    }
+  };
+
+  const percent = ((db + 12) / 24) * 100;
+
+  return (
+    <div className="flex flex-col items-center gap-2 select-none">
+      <span
+        className={`text-[11px] font-mono-tabular font-semibold ${
+          disabled ? 'text-white/40' : 'text-[var(--accent)]'
+        }`}
+      >
+        {db > 0 ? `+${db}` : db}
+      </span>
+
+      <div
+        ref={trackRef}
+        role="slider"
+        tabIndex={disabled ? -1 : 0}
+        aria-label={`${freq} band`}
+        aria-valuemin={-12}
+        aria-valuemax={12}
+        aria-valuenow={db}
+        onKeyDown={(e) => {
+          if (disabled) return;
+          if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            onChange(Math.min(12, db + 1));
+          } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            onChange(Math.max(-12, db - 1));
+          }
+        }}
+        onPointerDown={(e) => {
+          if (disabled) return;
+          draggingRef.current = true;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          updateFromClientY(e.clientY);
+        }}
+        onPointerMove={(e) => {
+          if (!draggingRef.current) return;
+          updateFromClientY(e.clientY);
+        }}
+        onPointerUp={(e) => {
+          draggingRef.current = false;
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }
+        }}
+        onPointerCancel={() => {
+          draggingRef.current = false;
+        }}
+        className={`relative h-32 w-9 flex items-center justify-center touch-none ${
+          disabled ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer'
+        }`}
+      >
+        {/* Rail */}
+        <div className="relative w-1.5 h-full rounded-full bg-white/12 overflow-hidden">
+          <div
+            className="absolute bottom-0 left-0 right-0 rounded-full transition-all duration-75"
+            style={{
+              height: `${percent}%`,
+              backgroundColor: 'var(--accent)',
+            }}
+          />
+        </div>
+        {/* Zero tick */}
+        <div className="absolute left-2 right-2 top-1/2 -translate-y-1/2 h-px bg-white/20 pointer-events-none" />
+        {/* Thumb */}
+        <div
+          className="absolute w-4 h-4 rounded-full bg-white border-2 border-[var(--accent)] shadow pointer-events-none transition-all duration-75"
+          style={{
+            bottom: `calc(${percent}% - 8px)`,
+          }}
+        />
+      </div>
+
+      <span className="text-[11px] font-mono-tabular text-white/65">{freq}</span>
+    </div>
+  );
+};
+
+interface ToggleSwitchProps {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+  description?: string;
+  icon?: React.ReactNode;
+}
+
+const ToggleSwitchRow: React.FC<ToggleSwitchProps> = ({
+  checked,
+  onChange,
+  label,
+  description,
+  icon,
+}) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    onClick={() => onChange(!checked)}
+    className="w-full min-h-[52px] px-3.5 py-2.5 flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-left transition-colors"
+  >
+    <div className="min-w-0 pr-2">
+      <div className="flex items-center gap-2">
+        {icon}
+        <p className="text-sm font-medium text-white truncate">{label}</p>
+      </div>
+      {description && <p className="text-xs text-white/60 mt-0.5 leading-snug">{description}</p>}
+    </div>
+    <span
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+        checked ? 'bg-[var(--accent)]' : 'bg-white/20'
+      }`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </span>
+  </button>
+);
+
 export const SideDrawer: React.FC<SideDrawerProps> = ({
   open,
+  initialSection = 'menu',
   onClose,
   settings,
   onUpdateSettings,
@@ -87,21 +279,31 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
   onUpdateEqualizer,
   onCheckUpdate,
   currentTrack,
+  positionSec = 0,
   isPlaying,
   onTogglePlay,
   onNext,
   onPrev,
   onRescanLibrary,
 }) => {
-  const [activeSection, setActiveSection] = useState<DrawerSection>('menu');
+  const [activeSection, setActiveSection] = useState<DrawerSection>(initialSection);
+
+  useEffect(() => {
+    if (open) {
+      setActiveSection(initialSection);
+    }
+  }, [open, initialSection]);
 
   const dynamicVersion = React.useMemo(() => {
     try {
-      const bridge = (window as any).AndroidBridge;
+      const bridge = (window as unknown as { AndroidBridge?: { getVersionName?: () => string } })
+        .AndroidBridge;
       if (bridge && typeof bridge.getVersionName === 'function') {
         return `V-${bridge.getVersionName()}`;
       }
-    } catch {}
+    } catch {
+      // ignore
+    }
     return APP_VERSION_TAG;
   }, []);
 
@@ -110,6 +312,14 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
   const handleClose = () => {
     setActiveSection('menu');
     onClose();
+  };
+
+  const handleSelectScenicTheme = (scenicThemeId: string) => {
+    const mappedAccent = SCENIC_ACCENT_MAP[scenicThemeId];
+    onUpdateSettings({
+      scenicThemeId,
+      ...(mappedAccent ? { accentId: mappedAccent } : {}),
+    });
   };
 
   const handlePresetClick = (presetId: EqPresetId) => {
@@ -134,20 +344,47 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
   };
 
   const activeMenuMeta = MENU_LIST.find((m) => m.id === activeSection);
+  const currentScenicId = settings.scenicThemeId ?? 'midnight_gold';
+  const currentThemeObj =
+    SCENIC_THEMES.find((t) => t.id === currentScenicId) ?? SCENIC_THEMES[0];
+  const currentWidgetStyle = settings.widgetStyle ?? 'frosted';
+  const currentAudioQuality = settings.audioQuality ?? 'lossless';
+  const bassBoostValue = equalizer.bassBoost ?? 40;
+
+  const progressRatio =
+    currentTrack && currentTrack.durationSec > 0
+      ? Math.min(100, Math.max(0, (positionSec / currentTrack.durationSec) * 100))
+      : 42;
+
+  const eqPoints = equalizer.bands.map((db, idx) => ({
+    x: 24 + idx * 63,
+    y: 55 - (db / 12) * 38,
+  }));
+  const eqCurveD = buildSmoothCurvePath(eqPoints);
+  const eqAreaD = `${eqCurveD} L ${eqPoints[eqPoints.length - 1].x} 102 L ${eqPoints[0].x} 102 Z`;
+
+  const widgetContainerClass =
+    currentWidgetStyle === 'obsidian'
+      ? 'bg-[#08090F]/95 border border-white/10'
+      : currentWidgetStyle === 'vibrant'
+        ? 'bg-[var(--accent-soft)] backdrop-blur-2xl border border-[var(--accent)]/35'
+        : 'bg-white/[0.08] backdrop-blur-2xl border border-white/15';
 
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <div className="fixed inset-0 z-[60] flex">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/65 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
         onClick={handleClose}
         aria-hidden="true"
       />
 
       {/* Drawer Panel */}
-      <aside className="relative z-10 flex h-full w-full max-w-[360px] flex-col bg-[#F8F7F4] dark:bg-[#111114] text-[#111114] dark:text-[#F5F3EE] border-r border-black/10 dark:border-white/10 shadow-2xl">
+      <aside className="relative z-10 flex h-full w-full max-w-[380px] flex-col bg-[#080A12] text-white border-r border-white/10 shadow-2xl overflow-hidden">
+        <ScenicBackdrop className="absolute inset-0 z-0" />
+
         {/* Brand Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-black/10 dark:border-white/10">
+        <div className="relative z-10 flex items-center justify-between px-5 py-4 border-b border-white/10 bg-black/20 backdrop-blur-md">
           <div className="flex items-center gap-3 min-w-0">
             <img
               src={LOGO_IMAGE_URL}
@@ -156,18 +393,16 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
               className="w-11 h-11 rounded-full object-cover border border-[var(--accent)]/60 shrink-0"
             />
             <div className="min-w-0">
-              <h2 className="font-display text-base font-bold tracking-wide truncate">
+              <h2 className="font-display text-base font-bold tracking-wide text-white truncate">
                 AG Music Player
               </h2>
-              <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
-                Music Player · {dynamicVersion}
-              </p>
+              <p className="text-xs text-white/65 truncate">{dynamicVersion}</p>
             </div>
           </div>
           <button
             onClick={handleClose}
             aria-label="Close menu"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -175,152 +410,268 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
 
         {/* Sub-view Back Bar */}
         {activeSection !== 'menu' && (
-          <div className="px-3 py-2 border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] flex items-center gap-2">
+          <div className="relative z-10 px-3 py-2 border-b border-white/10 bg-white/[0.04] backdrop-blur-md flex items-center gap-2">
             <button
               onClick={() => setActiveSection('menu')}
-              className="min-h-[40px] px-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-1.5 text-sm font-semibold"
+              className="min-h-[40px] px-2.5 rounded-xl hover:bg-white/10 flex items-center gap-1.5 text-sm font-semibold text-white"
             >
               <ChevronLeft className="w-4 h-4 text-[var(--accent)]" />
               <span>Menu</span>
             </button>
-            <span className="text-xs text-[#6B675E] dark:text-[#9E9A90]">/</span>
-            <span className="text-sm font-semibold">{activeMenuMeta?.label}</span>
+            <span className="text-xs text-white/45">/</span>
+            <span className="text-sm font-semibold text-white">{activeMenuMeta?.label}</span>
           </div>
         )}
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-          {/* LIST-WISE MAIN DRAWER MENU */}
+        <div className="relative z-10 flex-1 overflow-y-auto px-4 py-4 space-y-5">
+          {/* MAIN DRAWER MENU */}
           {activeSection === 'menu' && (
-            <nav aria-label="Drawer Menu" className="divide-y divide-black/5 dark:divide-white/5">
+            <nav aria-label="Drawer Menu" className="space-y-2">
               {MENU_LIST.map((item) => {
                 const Icon = item.icon;
                 return (
                   <button
                     key={item.id}
                     onClick={() => setActiveSection(item.id)}
-                    className="w-full min-h-[60px] px-3 py-3 flex items-center gap-3.5 rounded-xl hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors text-left"
+                    className="w-full min-h-[62px] px-3.5 py-3 flex items-center gap-3.5 rounded-2xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 transition-colors text-left"
                   >
                     <div className="w-10 h-10 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center shrink-0">
                       <Icon className="w-5 h-5 text-[var(--accent)]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold">{item.label}</p>
-                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
-                        {item.subtitle}
-                      </p>
+                      <p className="text-sm font-semibold text-white">{item.label}</p>
+                      <p className="text-xs text-white/65 truncate">{item.subtitle}</p>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-[#6B675E] dark:text-[#9E9A90] shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-white/60 shrink-0" />
                   </button>
                 );
               })}
             </nav>
           )}
 
-          {/* THEME SECTION */}
+          {/* THEME CUSTOMIZATION SCREEN */}
           {activeSection === 'theme' && (
-            <div className="space-y-6 px-1">
+            <div className="space-y-6">
               <div>
-                <h3 className="text-sm font-semibold mb-3">Appearance Mode</h3>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => onUpdateSettings({ themeMode: 'dark' })}
-                    className={`w-full min-h-[48px] px-4 flex items-center justify-between rounded-xl border text-sm font-medium transition-all ${
-                      settings.themeMode === 'dark'
-                        ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Moon className="w-4 h-4" />
-                      <span>Dark Mode</span>
-                    </div>
-                    {settings.themeMode === 'dark' && <Check className="w-4 h-4" />}
-                  </button>
-                  <button
-                    onClick={() => onUpdateSettings({ themeMode: 'light' })}
-                    className={`w-full min-h-[48px] px-4 flex items-center justify-between rounded-xl border text-sm font-medium transition-all ${
-                      settings.themeMode === 'light'
-                        ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
-                        : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Sun className="w-4 h-4" />
-                      <span>Light Mode</span>
-                    </div>
-                    {settings.themeMode === 'light' && <Check className="w-4 h-4" />}
-                  </button>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[var(--accent)]" />
+                    <h3 className="text-sm font-semibold text-white">Theme Styles</h3>
+                  </div>
+                  <span className="text-xs text-white/60">Live Preview</span>
                 </div>
-              </div>
 
-              <div>
-                <h3 className="text-sm font-semibold mb-3">Accent Color</h3>
-                <div className="space-y-2">
-                  {ACCENT_OPTIONS.map((opt) => {
-                    const selected = settings.accentId === opt.id;
+                {/* Live Mini-Player Preview Cards */}
+                <div className="space-y-3">
+                  {SCENIC_THEMES.map((theme) => {
+                    const selected = currentScenicId === theme.id;
                     return (
                       <button
-                        key={opt.id}
-                        onClick={() => onUpdateSettings({ accentId: opt.id })}
-                        className={`w-full min-h-[48px] px-3.5 flex items-center justify-between rounded-xl border transition-all ${
+                        key={theme.id}
+                        type="button"
+                        onClick={() => handleSelectScenicTheme(theme.id)}
+                        className={`w-full p-3 rounded-2xl border text-left transition-all ${
                           selected
-                            ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
-                            : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
+                            ? 'border-[var(--accent)] bg-white/[0.08] shadow-lg'
+                            : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.07]'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <span
-                            className="w-5 h-5 rounded-full border border-black/20 dark:border-white/20"
-                            style={{ backgroundColor: opt.hex }}
-                          />
-                          <span className="text-sm font-medium">{opt.label}</span>
+                        <div className="flex items-center justify-between mb-2.5">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-white truncate">
+                              {theme.label}
+                            </p>
+                            <p className="text-[11px] text-white/60 truncate">{theme.subtitle}</p>
+                          </div>
+                          {selected && (
+                            <span className="w-6 h-6 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center shrink-0">
+                              <Check className="w-3.5 h-3.5" />
+                            </span>
+                          )}
                         </div>
-                        {selected && <Check className="w-4 h-4 text-[var(--accent)]" />}
+
+                        {/* Embedded Live Mini-Player Preview */}
+                        <div
+                          className="rounded-xl p-2.5 border border-white/10 space-y-2"
+                          style={{ background: theme.previewGradient }}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/15"
+                              style={{ backgroundColor: theme.accentSoftRgba }}
+                            >
+                              <Disc3 className="w-4 h-4" style={{ color: theme.accentHex }} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-white truncate">
+                                {currentTrack?.title ?? 'Midnight Resonance'}
+                              </p>
+                              <p className="text-[10px] text-white/65 truncate">
+                                {currentTrack?.artist ?? 'AG Audio Engine'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span
+                                className="w-6 h-6 rounded-full flex items-center justify-center"
+                                style={{
+                                  backgroundColor: theme.accentHex,
+                                  color: theme.accentFgHex,
+                                }}
+                              >
+                                <Play className="w-3 h-3 fill-current ml-0.5" />
+                              </span>
+                              <SkipForward className="w-3.5 h-3.5 text-white/75" />
+                            </div>
+                          </div>
+                          <div className="h-1 w-full rounded-full bg-white/15 overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: '58%',
+                                backgroundColor: theme.accentHex,
+                              }}
+                            />
+                          </div>
+                        </div>
                       </button>
                     );
                   })}
                 </div>
               </div>
+
+              {/* Accent Color Swatches */}
+              <div className="space-y-3 pt-2 border-t border-white/10">
+                <h3 className="text-sm font-semibold text-white">Accent Color</h3>
+                <div className="flex items-center justify-between gap-2 p-3 rounded-2xl bg-white/[0.04] border border-white/10">
+                  {ACCENT_OPTIONS.map((opt) => {
+                    const selected = settings.accentId === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => onUpdateSettings({ accentId: opt.id })}
+                        aria-label={opt.label}
+                        title={opt.label}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform ${
+                          selected
+                            ? 'scale-110 ring-2 ring-white ring-offset-2 ring-offset-[#0A0C16]'
+                            : 'hover:scale-105 opacity-85 hover:opacity-100'
+                        }`}
+                        style={{ backgroundColor: opt.hex }}
+                      >
+                        {selected && <Check className="w-4 h-4 text-white drop-shadow" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* System / Auto-Theme Toggle */}
+              <div className="space-y-2 pt-2 border-t border-white/10">
+                <ToggleSwitchRow
+                  checked={Boolean(settings.autoTheme)}
+                  onChange={(next) => onUpdateSettings({ autoTheme: next })}
+                  label="System / Auto Theme"
+                  description="Match theme brightness with device system mode"
+                />
+              </div>
             </div>
           )}
 
-          {/* EQUALIZER SECTION */}
+          {/* EQUALIZER (EQ) SCREEN */}
           {activeSection === 'equalizer' && (
-            <div className="space-y-5 px-1">
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold">5-Band Audio Equalizer</h3>
-                  <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
-                    Real-time Web Audio DSP filter bank
-                  </p>
+                  <h3 className="text-sm font-semibold text-white">5-Band Equalizer</h3>
+                  <p className="text-xs text-white/65">Frequency response & DSP</p>
                 </div>
                 <button
                   onClick={() => onUpdateEqualizer({ ...equalizer, enabled: !equalizer.enabled })}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  className={`min-h-[36px] px-3.5 rounded-xl text-xs font-semibold transition-colors ${
                     equalizer.enabled
-                      ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
-                      : 'bg-black/10 dark:bg-white/10 text-[#6B675E] dark:text-[#9E9A90]'
+                      ? 'bg-[var(--accent)] text-[var(--accent-fg)] shadow-sm'
+                      : 'bg-white/10 text-white/70'
                   }`}
                 >
                   {equalizer.enabled ? 'Active' : 'Bypassed'}
                 </button>
               </div>
 
-              {/* Presets list */}
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-[#6B675E] dark:text-[#9E9A90]">Presets</p>
-                <div className="flex flex-wrap gap-2">
-                  {(Object.keys(EQ_PRESETS) as EqPresetId[]).map((presetKey) => {
-                    const active = equalizer.preset === presetKey;
+              {/* Real-Time Frequency Curve Graph (Single Accent Color) */}
+              <div className="p-3 rounded-2xl bg-black/35 backdrop-blur-xl border border-white/10">
+                <div className="flex items-center justify-between text-[11px] font-mono-tabular text-white/55 mb-1 px-1">
+                  <span>+12 dB</span>
+                  <span>0 dB</span>
+                  <span>-12 dB</span>
+                </div>
+                <svg
+                  viewBox="0 0 300 110"
+                  className={`w-full h-28 overflow-visible transition-opacity ${
+                    equalizer.enabled ? 'opacity-100' : 'opacity-40'
+                  }`}
+                  aria-label="Real-time frequency response curve"
+                >
+                  <line x1="12" y1="17" x2="288" y2="17" stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <line x1="12" y1="55" x2="288" y2="55" stroke="rgba(255,255,255,0.18)" />
+                  <line x1="12" y1="93" x2="288" y2="93" stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+
+                  <path d={eqAreaD} fill="var(--accent-soft)" />
+                  <path
+                    d={eqCurveD}
+                    fill="none"
+                    stroke="var(--accent)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  />
+
+                  {eqPoints.map((pt, idx) => (
+                    <circle
+                      key={EQ_FREQUENCIES[idx]}
+                      cx={pt.x}
+                      cy={pt.y}
+                      r="4"
+                      fill="#FFFFFF"
+                      stroke="var(--accent)"
+                      strokeWidth="2"
+                    />
+                  ))}
+                </svg>
+              </div>
+
+              {/* Interactive Vertical Frequency Sliders */}
+              <div className="p-3.5 rounded-2xl bg-white/[0.04] backdrop-blur-xl border border-white/10">
+                <div className="grid grid-cols-5 gap-1">
+                  {EQ_FREQUENCIES.map((freq, idx) => (
+                    <VerticalEqSlider
+                      key={freq}
+                      freq={freq}
+                      db={equalizer.bands[idx]}
+                      disabled={!equalizer.enabled}
+                      onChange={(val) => handleBandChange(idx, val)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Preset Buttons */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-white/65">Presets</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {DISPLAY_EQ_PRESETS.map((presetKey) => {
+                    const active =
+                      equalizer.preset === presetKey ||
+                      (presetKey === 'flat' && equalizer.preset === 'normal');
                     return (
                       <button
                         key={presetKey}
+                        type="button"
                         onClick={() => handlePresetClick(presetKey)}
-                        className={`min-h-[38px] px-3 rounded-xl text-xs font-medium border transition-colors whitespace-nowrap ${
+                        className={`min-h-[38px] px-2.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap ${
                           active
-                            ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] font-semibold'
-                            : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
+                            ? 'bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent)] font-semibold'
+                            : 'bg-white/[0.05] text-white/80 border border-white/10 hover:bg-white/[0.1]'
                         }`}
                       >
                         {EQ_PRESETS[presetKey].label}
@@ -330,148 +681,208 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                 </div>
               </div>
 
-              {/* 5-Band Sliders */}
-              <div className="p-4 rounded-2xl bg-black/[0.04] dark:bg-white/[0.03] border border-black/10 dark:border-white/10 space-y-4">
-                {EQ_FREQUENCIES.map((freq, idx) => {
-                  const db = equalizer.bands[idx];
-                  return (
-                    <div key={freq} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-mono-tabular font-medium">{freq}</span>
-                        <span className="font-mono-tabular text-[var(--accent)]">
-                          {db > 0 ? `+${db}` : db} dB
-                        </span>
-                      </div>
-                      <input
-                        type="range"
-                        min={-12}
-                        max={12}
-                        step={1}
-                        value={db}
-                        disabled={!equalizer.enabled}
-                        onChange={(e) => handleBandChange(idx, Number(e.target.value))}
-                        className="ag-slider w-full bg-black/15 dark:bg-white/15 rounded-full h-1.5"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Virtualizer */}
-              <div className="p-4 rounded-2xl bg-black/[0.04] dark:bg-white/[0.03] border border-black/10 dark:border-white/10 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold">Stereo Virtualizer</span>
-                  <span className="font-mono-tabular text-[var(--accent)]">{equalizer.virtualizer}%</span>
+              {/* Bass Boost & Stereo Virtualizer */}
+              <div className="grid grid-cols-1 gap-3">
+                <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-white">Bass Boost</span>
+                    <span className="font-mono-tabular text-[var(--accent)] font-semibold">
+                      {bassBoostValue}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={bassBoostValue}
+                    disabled={!equalizer.enabled}
+                    onChange={(e) => {
+                      const nextBass = Number(e.target.value);
+                      const nextBands = [...equalizer.bands] as [number, number, number, number, number];
+                      nextBands[0] = Math.round((nextBass / 100) * 10);
+                      onUpdateEqualizer({
+                        ...equalizer,
+                        bassBoost: nextBass,
+                        bands: nextBands,
+                        preset: 'custom',
+                      });
+                    }}
+                    className="ag-slider w-full bg-white/15 rounded-full h-1.5"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={equalizer.virtualizer}
-                  disabled={!equalizer.enabled}
-                  onChange={(e) =>
-                    onUpdateEqualizer({ ...equalizer, virtualizer: Number(e.target.value) })
-                  }
-                  className="ag-slider w-full bg-black/15 dark:bg-white/15 rounded-full h-1.5"
-                />
+
+                <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-white">Stereo Virtualizer</span>
+                    <span className="font-mono-tabular text-[var(--accent)] font-semibold">
+                      {equalizer.virtualizer}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={equalizer.virtualizer}
+                    disabled={!equalizer.enabled}
+                    onChange={(e) =>
+                      onUpdateEqualizer({ ...equalizer, virtualizer: Number(e.target.value) })
+                    }
+                    className="ag-slider w-full bg-white/15 rounded-full h-1.5"
+                  />
+                </div>
               </div>
             </div>
           )}
 
-          {/* WIDGET PREVIEW SECTION */}
+          {/* HOME SCREEN WIDGET SHOWCASE */}
           {activeSection === 'widget' && (
-            <div className="space-y-5 px-1">
+            <div className="space-y-5">
               <div>
-                <h3 className="text-sm font-semibold">Home Screen Widgets</h3>
-                <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] mt-1">
-                  Interactive preview of AG Music Player Android home screen widgets.
+                <h3 className="text-sm font-semibold text-white">Home Screen Widget</h3>
+                <p className="text-xs text-white/65 mt-0.5">
+                  2×2 compact & 4×2 wide widget styles
                 </p>
               </div>
 
-              {/* 4x1 Compact Widget Preview */}
+              {/* Widget Style Selector */}
+              <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-white/[0.05] border border-white/10">
+                {(
+                  [
+                    { id: 'frosted', label: 'Frosted' },
+                    { id: 'obsidian', label: 'Obsidian' },
+                    { id: 'vibrant', label: 'Accent' },
+                  ] as const
+                ).map((styleOpt) => (
+                  <button
+                    key={styleOpt.id}
+                    type="button"
+                    onClick={() => onUpdateSettings({ widgetStyle: styleOpt.id })}
+                    className={`min-h-[34px] rounded-lg text-xs font-medium transition-colors ${
+                      currentWidgetStyle === styleOpt.id
+                        ? 'bg-[var(--accent)] text-[var(--accent-fg)] font-semibold'
+                        : 'text-white/75 hover:text-white'
+                    }`}
+                  >
+                    {styleOpt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Compact 2x2 Widget Card */}
               <div className="space-y-2">
-                <span className="text-xs font-medium text-[#6B675E] dark:text-[#9E9A90]">
-                  4 × 1 Compact Bar Widget
-                </span>
-                <div className="p-3 rounded-2xl bg-[#16161A] text-[#F5F3EE] border border-white/10 flex items-center gap-3 shadow-lg">
-                  <CoverImage
-                    src={currentTrack?.coverUrl}
-                    alt={currentTrack?.title ?? 'Album art'}
-                    className="w-11 h-11 rounded-xl object-cover shrink-0"
-                    fallback={
-                      <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-                        <Disc3 className="w-5 h-5 text-[var(--accent)]" />
+                <span className="text-xs font-medium text-white/70">2 × 2 Compact Widget</span>
+                <div className="flex justify-start">
+                  <div
+                    className={`w-[210px] aspect-square p-3.5 rounded-3xl flex flex-col justify-between shadow-2xl ${widgetContainerClass}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <CoverImage
+                        src={currentTrack?.coverUrl}
+                        alt={currentTrack?.title ?? 'Album art'}
+                        className="w-12 h-12 rounded-xl object-cover shrink-0 border border-white/15"
+                        fallback={
+                          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                            <Disc3 className="w-6 h-6 text-[var(--accent)]" />
+                          </div>
+                        }
+                      />
+                      <span className="text-[10px] font-mono-tabular text-[var(--accent)]">AG</span>
+                    </div>
+
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-bold text-white truncate">
+                        {currentTrack?.title ?? 'Midnight Resonance'}
+                      </p>
+                      <p className="text-[11px] text-white/65 truncate">
+                        {currentTrack?.artist ?? 'AG Music Player'}
+                      </p>
+                      <div className="h-1 w-full rounded-full bg-white/15 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-[var(--accent)]"
+                          style={{ width: `${progressRatio}%` }}
+                        />
                       </div>
-                    }
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold truncate">
-                      {currentTrack?.title ?? 'No track selected'}
-                    </p>
-                    <p className="text-[11px] text-[#9E9A90] truncate">
-                      {currentTrack?.artist ?? 'AG Music Player'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={onPrev}
-                      className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-                      aria-label="Widget previous"
-                    >
-                      <SkipBack className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={onTogglePlay}
-                      className="w-9 h-9 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center"
-                      aria-label="Widget play pause"
-                    >
-                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-                    </button>
-                    <button
-                      onClick={onNext}
-                      className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-                      aria-label="Widget next"
-                    >
-                      <SkipForward className="w-4 h-4" />
-                    </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={onPrev}
+                        aria-label="2x2 Widget previous"
+                        className="p-1.5 rounded-lg hover:bg-white/10 text-white"
+                      >
+                        <SkipBack className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={onTogglePlay}
+                        aria-label="2x2 Widget play pause"
+                        className="w-9 h-9 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center shadow"
+                      >
+                        {isPlaying ? (
+                          <Pause className="w-4 h-4 fill-current" />
+                        ) : (
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
+                        )}
+                      </button>
+                      <button
+                        onClick={onNext}
+                        aria-label="2x2 Widget next"
+                        className="p-1.5 rounded-lg hover:bg-white/10 text-white"
+                      >
+                        <SkipForward className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* 4x2 Expanded Widget Preview */}
+              {/* Wide 4x2 Widget Card */}
               <div className="space-y-2">
-                <span className="text-xs font-medium text-[#6B675E] dark:text-[#9E9A90]">
-                  4 × 2 Studio Card Widget
-                </span>
-                <div className="p-4 rounded-2xl bg-[#16161A] text-[#F5F3EE] border border-white/10 space-y-3 shadow-lg">
+                <span className="text-xs font-medium text-white/70">4 × 2 Studio Widget</span>
+                <div className={`p-4 rounded-3xl text-white space-y-3 shadow-2xl ${widgetContainerClass}`}>
                   <div className="flex items-center gap-3.5">
                     <CoverImage
                       src={currentTrack?.coverUrl}
                       alt={currentTrack?.title ?? 'Album art'}
-                      className="w-16 h-16 rounded-xl object-cover shrink-0"
+                      className="w-16 h-16 rounded-2xl object-cover shrink-0 border border-white/15"
                       fallback={
-                        <div className="w-16 h-16 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                        <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
                           <Disc3 className="w-7 h-7 text-[var(--accent)]" />
                         </div>
                       }
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold truncate">
-                        {currentTrack?.title ?? 'No track selected'}
+                      <p className="text-sm font-bold text-white truncate">
+                        {currentTrack?.title ?? 'Midnight Resonance'}
                       </p>
-                      <p className="text-xs text-[#9E9A90] truncate">
-                        {currentTrack ? `${currentTrack.artist} · ${currentTrack.album}` : 'AG Music Player'}
+                      <p className="text-xs text-white/70 truncate mt-0.5">
+                        {currentTrack
+                          ? `${currentTrack.artist} · ${currentTrack.album}`
+                          : 'AG Music Player'}
                       </p>
+                      <div className="mt-2 space-y-1">
+                        <div className="h-1.5 w-full rounded-full bg-white/15 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-[var(--accent)]"
+                            style={{ width: `${progressRatio}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] font-mono-tabular text-white/55">
+                          <span>{formatTime(positionSec)}</span>
+                          <span>{formatTime(currentTrack?.durationSec ?? 218)}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
+
                   <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                    <span className="text-[11px] font-display text-[var(--accent)]">AG Music Player</span>
-                    <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-medium text-white/65">Home Widget</span>
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={onPrev}
                         className="p-2 rounded-lg hover:bg-white/10"
-                        aria-label="Card widget previous"
+                        aria-label="4x2 Widget previous"
                       >
                         <SkipBack className="w-4 h-4" />
                       </button>
@@ -479,13 +890,17 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                         onClick={onTogglePlay}
                         className="px-4 py-1.5 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] text-xs font-semibold flex items-center gap-1.5"
                       >
-                        {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                        {isPlaying ? (
+                          <Pause className="w-3.5 h-3.5 fill-current" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                        )}
                         <span>{isPlaying ? 'Pause' : 'Play'}</span>
                       </button>
                       <button
                         onClick={onNext}
                         className="p-2 rounded-lg hover:bg-white/10"
-                        aria-label="Card widget next"
+                        aria-label="4x2 Widget next"
                       >
                         <SkipForward className="w-4 h-4" />
                       </button>
@@ -496,108 +911,81 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
             </div>
           )}
 
-          {/* SETTINGS SECTION */}
+          {/* SETTINGS SCREEN (Zero Duplication with 3-Dot Track Menu) */}
           {activeSection === 'settings' && (
-            <div className="space-y-6 px-1">
-              {/* Auto-Sync Audio Library */}
-              <div className="space-y-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B675E] dark:text-[#9E9A90]">
-                  Music Library Auto-Sync
+            <div className="space-y-6">
+              {/* 1. Appearance & Themes */}
+              <div className="space-y-2.5">
+                <h3 className="text-xs font-semibold text-[var(--accent)] tracking-wide">
+                  Appearance & Themes
                 </h3>
 
-                <label className="flex items-center justify-between p-3 rounded-xl border border-black/10 dark:border-white/10 cursor-pointer">
-                  <div className="pr-3">
-                    <div className="flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-[var(--accent)] shrink-0" />
-                      <p className="text-sm font-medium">Auto-Sync Device Audio</p>
+                <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-white/[0.04] border border-white/10">
+                  {[
+                    { id: 'obsidian_dark', label: 'Dark' },
+                    { id: 'oled_black', label: 'OLED Black' },
+                    { id: 'dynamic_tint', label: 'Dynamic' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => handleSelectScenicTheme(opt.id)}
+                      className={`min-h-[34px] rounded-lg text-xs font-medium transition-colors ${
+                        currentScenicId === opt.id
+                          ? 'bg-[var(--accent)] text-[var(--accent-fg)] font-semibold'
+                          : 'text-white/75 hover:text-white'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('theme')}
+                  className="w-full min-h-[52px] px-3.5 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 flex items-center justify-between text-left transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Palette className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white">All Themes & Swatches</p>
+                      <p className="text-xs text-white/60 truncate">{currentThemeObj.label}</p>
                     </div>
-                    <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] mt-0.5">
-                      Automatically scan local tracks once media permission is granted
-                    </p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.autoSyncPermission}
-                    onChange={(e) => onUpdateSettings({ autoSyncPermission: e.target.checked })}
-                    className="w-4 h-4 accent-[var(--accent)]"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-3 rounded-xl border border-black/10 dark:border-white/10 cursor-pointer">
-                  <div className="pr-3">
-                    <p className="text-sm font-medium">Filter short audio clips</p>
-                    <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
-                      Hide audio under 30s or 500KB
-                    </p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.filterShortClips}
-                    onChange={(e) => onUpdateSettings({ filterShortClips: e.target.checked })}
-                    className="w-4 h-4 accent-[var(--accent)]"
-                  />
-                </label>
-
-                {onRescanLibrary && (
-                  <button
-                    onClick={onRescanLibrary}
-                    className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-black/10 dark:border-white/10 hover:border-[var(--accent)]/60 flex items-center justify-between text-sm font-medium transition-colors"
-                  >
-                    <span>Refresh / Rescan Device Audio</span>
-                    <RefreshCw className="w-4 h-4 text-[var(--accent)]" />
-                  </button>
-                )}
+                  <ChevronRight className="w-4 h-4 text-white/60 shrink-0" />
+                </button>
               </div>
 
-              {/* Audio & Playback */}
-              <div className="space-y-3 pt-2 border-t border-black/10 dark:border-white/10">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B675E] dark:text-[#9E9A90]">
-                  Audio & Playback
+              {/* 2. Audio & Equalizer */}
+              <div className="space-y-2.5 pt-3 border-t border-white/10">
+                <h3 className="text-xs font-semibold text-[var(--accent)] tracking-wide">
+                  Audio & Equalizer
                 </h3>
 
-                {[
-                  {
-                    key: 'gaplessPlayback' as const,
-                    title: 'Gapless playback',
-                    desc: 'Seamless transitions between album tracks',
-                  },
-                  {
-                    key: 'fadeOnPause' as const,
-                    title: 'Fade-in / out on pause',
-                    desc: 'Smooth volume ramp on play & pause',
-                  },
-                  {
-                    key: 'headsetAutoPlay' as const,
-                    title: 'Headset / Bluetooth auto-play',
-                    desc: 'Resume playback when audio device connects',
-                  },
-                  {
-                    key: 'headsetAutoPause' as const,
-                    title: 'Headset / Bluetooth auto-pause',
-                    desc: 'Pause immediately when disconnected',
-                  },
-                ].map((item) => (
-                  <label
-                    key={item.key}
-                    className="flex items-center justify-between p-3 rounded-xl border border-black/10 dark:border-white/10 cursor-pointer"
-                  >
-                    <div className="pr-3">
-                      <p className="text-sm font-medium">{item.title}</p>
-                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">{item.desc}</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('equalizer')}
+                  className="w-full min-h-[52px] px-3.5 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 flex items-center justify-between text-left transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Sliders className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white">Equalizer & Presets</p>
+                      <p className="text-xs text-white/60">
+                        {equalizer.enabled
+                          ? EQ_PRESETS[equalizer.preset]?.label ?? 'Custom'
+                          : 'Bypassed'}
+                      </p>
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={settings[item.key]}
-                      onChange={(e) => onUpdateSettings({ [item.key]: e.target.checked })}
-                      className="w-4 h-4 accent-[var(--accent)]"
-                    />
-                  </label>
-                ))}
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/60 shrink-0" />
+                </button>
 
-                <div className="p-3 rounded-xl border border-black/10 dark:border-white/10 space-y-2">
+                <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">Crossfade duration</span>
-                    <span className="font-mono-tabular text-xs text-[var(--accent)]">
+                    <span className="font-medium text-white">Crossfade</span>
+                    <span className="font-mono-tabular text-xs text-[var(--accent)] font-semibold">
                       {settings.crossfadeSec}s
                     </span>
                   </div>
@@ -608,51 +996,143 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                     step={1}
                     value={settings.crossfadeSec}
                     onChange={(e) => onUpdateSettings({ crossfadeSec: Number(e.target.value) })}
-                    className="ag-slider w-full bg-black/15 dark:bg-white/15 rounded-full h-1.5"
+                    className="ag-slider w-full bg-white/15 rounded-full h-1.5"
                   />
+                </div>
+
+                <ToggleSwitchRow
+                  checked={settings.gaplessPlayback}
+                  onChange={(next) => onUpdateSettings({ gaplessPlayback: next })}
+                  label="Gapless Playback"
+                  description="Seamless transitions between album tracks"
+                />
+
+                <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-white">Audio Quality</span>
+                    <span className="text-xs font-mono-tabular text-white/60 capitalize">
+                      {currentAudioQuality}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(
+                      [
+                        { id: 'lossless', label: 'Lossless' },
+                        { id: 'high', label: '320 kbps' },
+                        { id: 'balanced', label: 'Balanced' },
+                      ] as const
+                    ).map((q) => (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => onUpdateSettings({ audioQuality: q.id })}
+                        className={`min-h-[34px] rounded-lg text-xs font-medium transition-colors ${
+                          currentAudioQuality === q.id
+                            ? 'bg-[var(--accent)] text-[var(--accent-fg)] font-semibold'
+                            : 'bg-white/[0.06] text-white/75 hover:bg-white/[0.12]'
+                        }`}
+                      >
+                        {q.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* Lock Screen & Notification */}
-              <div className="space-y-3 pt-2 border-t border-black/10 dark:border-white/10">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B675E] dark:text-[#9E9A90]">
-                  Lock Screen & Notification
+              {/* 3. Home Screen Widget */}
+              <div className="space-y-2.5 pt-3 border-t border-white/10">
+                <h3 className="text-xs font-semibold text-[var(--accent)] tracking-wide">
+                  Home Screen Widget
                 </h3>
-                <label className="flex items-center justify-between p-3 rounded-xl border border-black/10 dark:border-white/10 cursor-pointer">
-                  <div className="pr-3">
-                    <p className="text-sm font-medium">Lock screen album art</p>
-                    <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
-                      Show cover art via MediaSession API
-                    </p>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('widget')}
+                  className="w-full min-h-[52px] px-3.5 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 flex items-center justify-between text-left transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <LayoutGrid className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white">Widget Style (2×2 & 4×2)</p>
+                      <p className="text-xs text-white/60 capitalize">{currentWidgetStyle}</p>
+                    </div>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.lockScreenArt}
-                    onChange={(e) => onUpdateSettings({ lockScreenArt: e.target.checked })}
-                    className="w-4 h-4 accent-[var(--accent)]"
-                  />
-                </label>
-                <label className="flex items-center justify-between p-3 rounded-xl border border-black/10 dark:border-white/10 cursor-pointer">
-                  <div className="pr-3">
-                    <p className="text-sm font-medium">Notification controls</p>
-                    <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
-                      Persistent playback & download notifications
-                    </p>
+                  <ChevronRight className="w-4 h-4 text-white/60 shrink-0" />
+                </button>
+              </div>
+
+              {/* 4. Playback & Library */}
+              <div className="space-y-2.5 pt-3 border-t border-white/10">
+                <h3 className="text-xs font-semibold text-[var(--accent)] tracking-wide">
+                  Playback & Library
+                </h3>
+
+                <ToggleSwitchRow
+                  checked={settings.headsetAutoPlay}
+                  onChange={(next) => onUpdateSettings({ headsetAutoPlay: next })}
+                  label="Auto-Play"
+                  description="Resume playback when headphones or Bluetooth connect"
+                />
+
+                {onRescanLibrary && (
+                  <button
+                    type="button"
+                    onClick={onRescanLibrary}
+                    className="w-full min-h-[48px] px-3.5 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 flex items-center justify-between text-sm font-medium text-white transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FolderSearch className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                      <span>Scan Library</span>
+                    </div>
+                    <RefreshCw className="w-4 h-4 text-white/60" />
+                  </button>
+                )}
+
+                <ToggleSwitchRow
+                  checked={settings.autoSyncPermission}
+                  onChange={(next) => onUpdateSettings({ autoSyncPermission: next })}
+                  label="Auto-Sync Device Audio"
+                  description="Keep library synced with device storage"
+                  icon={<ShieldCheck className="w-4 h-4 text-[var(--accent)] shrink-0" />}
+                />
+
+                <ToggleSwitchRow
+                  checked={settings.filterShortClips}
+                  onChange={(next) => onUpdateSettings({ filterShortClips: next })}
+                  label="Filter Short Clips"
+                  description="Hide audio under 30s or 500KB"
+                />
+              </div>
+
+              {/* 5. About */}
+              <div className="space-y-2.5 pt-3 border-t border-white/10">
+                <h3 className="text-xs font-semibold text-[var(--accent)] tracking-wide">
+                  About
+                </h3>
+
+                <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Info className="w-4 h-4 text-[var(--accent)] shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white truncate">AG Music Player</p>
+                      <p className="text-xs text-white/60 font-mono-tabular">{dynamicVersion}</p>
+                    </div>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.notificationControls}
-                    onChange={(e) => onUpdateSettings({ notificationControls: e.target.checked })}
-                    className="w-4 h-4 accent-[var(--accent)]"
-                  />
-                </label>
+                  <button
+                    type="button"
+                    onClick={onCheckUpdate}
+                    className="min-h-[36px] px-3 rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] text-xs font-semibold hover:bg-white/15 transition-colors whitespace-nowrap"
+                  >
+                    Updates
+                  </button>
+                </div>
               </div>
             </div>
           )}
         </div>
 
         {/* Pinned Footer: Check Update Button */}
-        <div className="p-4 border-t border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02]">
+        <div className="relative z-10 p-4 border-t border-white/10 bg-black/20 backdrop-blur-md">
           <button
             onClick={onCheckUpdate}
             className="w-full min-h-[48px] px-4 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] font-semibold text-sm flex items-center justify-between transition-colors shadow-sm"
