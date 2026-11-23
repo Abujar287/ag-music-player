@@ -16,6 +16,9 @@ import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
+import com.ag.musicplayer.data.AppSettings
+import com.ag.musicplayer.data.MediaScanner
+import com.ag.musicplayer.data.Track
 import com.ag.musicplayer.updater.GitHubUpdateManager
 import kotlinx.coroutines.launch
 
@@ -116,9 +119,10 @@ class WebAppInterface(private val activity: MainActivity, private val updateMana
     @JavascriptInterface
     fun getLocalAudioTracksJson(): String {
         val scanner = MediaScanner(activity)
-        val tracks = scanner.scanLocalAudio(AppSettings())
+        val tracks: List<Track> = scanner.scanLocalAudio(AppSettings())
         val jsonArray = org.json.JSONArray()
-        for (track in tracks) {
+        for (i in 0 until tracks.size) {
+            val track = tracks[i]
             val obj = org.json.JSONObject().apply {
                 put("id", "device-${track.id}")
                 put("title", track.title)
