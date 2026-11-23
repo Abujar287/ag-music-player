@@ -63,6 +63,19 @@ jobs:
         with:
           packages: platform-tools platforms;android-35 build-tools;35.0.0
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Build Web App & Bundle into Android Assets
+        run: |
+          npm install
+          npm run build
+          mkdir -p android/app/src/main/assets
+          cp -r dist/* android/app/src/main/assets/
+
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
         with:

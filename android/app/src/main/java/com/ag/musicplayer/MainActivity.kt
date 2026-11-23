@@ -1,89 +1,60 @@
 package com.ag.musicplayer
 
 import android.Manifest
-import android.content.ComponentName
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.webkit.JavascriptInterface
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
-import com.ag.musicplayer.audio.MusicPlaybackService
-import com.ag.musicplayer.data.AppSettings
-import com.ag.musicplayer.data.MediaScanner
-import com.ag.musicplayer.data.Track
-import com.ag.musicplayer.ui.AgMusicApp
 import com.ag.musicplayer.updater.GitHubUpdateManager
-import com.google.common.util.concurrent.MoreExecutors
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var webView: WebView
     private lateinit var updateManager: GitHubUpdateManager
-    private lateinit var mediaScanner: MediaScanner
-    private var tracksState by mutableStateOf<List<Track>>(emptyList())
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { grants ->
-        val granted = grants.values.any { it }
-        if (granted) {
-            tracksState = mediaScanner.scanLocalAudio(AppSettings())
-        }
-    }
+    ) { _ -> }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         updateManager = GitHubUpdateManager(this)
-        mediaScanner = MediaScanner(this)
-
         requestRuntimePermissions()
 
-        val sessionToken = SessionToken(this, ComponentName(this, MusicPlaybackService::class.java))
-        val controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
-
-        setContent {
-            var mediaController by remember { mutableStateOf<MediaController?>(null) }
-
-            LaunchedEffect(Unit) {
-                controllerFuture.addListener(
-                    { mediaController = controllerFuture.get() },
-                    MoreExecutors.directExecutor()
-                )
-                tracksState = mediaScanner.scanLocalAudio(AppSettings())
+        webView = WebView(this).apply {
+            settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                databaseEnabled = true
+                allowFileAccess = true
+                allowContentAccess = true
+                mediaPlaybackRequiresUserGesture = false
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                setSupportZoom(false)
             }
-
-            MaterialTheme(
-                colorScheme = darkColorScheme(
-                    primary = Color(0xFFD4AF37),
-                    background = Color(0xFF0B0B0D),
-                    surface = Color(0xFF141417),
-                    onPrimary = Color(0xFF0B0B0D),
-                    onBackground = Color(0xFFF5F3EE),
-                    onSurface = Color(0xFFF5F3EE)
-                )
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFF0B0B0D))
-                ) {
-                    AgMusicApp(
-                        tracks = tracksState,
-                        mediaController = mediaController,
-                        updateManager = updateManager,
-                        mediaScanner = mediaScanner,
-                        onRescan = { settings -> tracksState = mediaScanner.scanLocalAudio(settings) }
-                    )
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                    if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            context.startActivity(intent)
+                        } catch (_: Exception) {}
+                        return true
+                    }
+                    return false
                 }
             }
+            addJavascriptInterface(WebAppInterface(this@MainActivity, updateManager), "AndroidBridge")
+            loadUrl("file:///android_asset/index.html")
         }
+
+        setContentView(webView)
     }
 
     private fun requestRuntimePermissions() {
@@ -95,5 +66,27 @@ class MainActivity : ComponentActivity() {
             perms.add(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
         permissionLauncher.launch(perms.toTypedArray())
+    }
+
+    override fun onBackPressed() {
+        if (webView.canGoBack()) {
+            webView.goBack()
+        } else {
+            super.onBackPressed()
+        }
+    }
+}
+
+class WebAppInterface(private val activity: MainActivity, private val updateManager: GitHubUpdateManager) {
+    @JavascriptInterface
+    fun checkForUpdates() {
+        activity.runOnUiThread {
+            updateManager.checkForUpdates()
+        }
+    }
+
+    @JavascriptInterface
+    fun getVersionName(): String {
+        return BuildConfig.VERSION_NAME
     }
 }
