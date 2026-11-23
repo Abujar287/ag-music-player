@@ -334,7 +334,11 @@ export default function App() {
     visibleTracks.forEach((t) => {
       map.set(t.folder, (map.get(t.folder) ?? 0) + 1);
     });
-    return Array.from(map.entries()).map(([path, count]) => ({ path, count }));
+    return Array.from(map.entries()).map(([path, count]) => {
+      const segments = path.split('/').filter(Boolean);
+      const name = segments[segments.length - 1] || path;
+      return { name, path, count };
+    });
   }, [visibleTracks]);
 
   const genres = useMemo(() => {
@@ -1199,7 +1203,7 @@ export default function App() {
                   <button
                     key={fld.path}
                     onClick={() =>
-                      setDrillFilter({ type: 'folder', value: fld.path, label: fld.path })
+                      setDrillFilter({ type: 'folder', value: fld.path, label: fld.name })
                     }
                     className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] rounded-xl text-left min-h-[56px]"
                   >
@@ -1207,9 +1211,9 @@ export default function App() {
                       <Folder className="w-5 h-5 text-[var(--accent)]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold font-mono-tabular truncate">{fld.path}</p>
-                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
-                        {fld.count} audio file{fld.count === 1 ? '' : 's'}
+                      <p className="text-sm font-semibold truncate">{fld.name}</p>
+                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] font-mono-tabular truncate">
+                        {fld.path} · {fld.count} audio file{fld.count === 1 ? '' : 's'}
                       </p>
                     </div>
                   </button>
