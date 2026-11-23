@@ -1,7 +1,6 @@
 package com.ag.musicplayer.updater
 
 import android.app.DownloadManager
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.database.Cursor
@@ -9,7 +8,6 @@ import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
-import android.provider.MediaStore
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.ag.musicplayer.BuildConfig
@@ -53,6 +51,8 @@ class GitHubUpdateManager(private val context: Context) {
     companion object {
         const val LATEST_RELEASE_API =
             "https://api.github.com/repos/Abujar287/ag-music-player/releases/latest"
+        private const val MAX_PENDING_WAIT_TICKS = 360 // ~90 seconds before reporting pending timeout
+        private const val POLL_INTERVAL_MS = 250L
     }
 
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
@@ -64,6 +64,8 @@ class GitHubUpdateManager(private val context: Context) {
     private var lastApkUri: Uri? = null
     private var pendingInstallFile: File? = null
     private var pendingInstallUri: Uri? = null
+    @Volatile
+    private var activeDownloadId: Long = -1L
 
     suspend fun checkForUpdates() {
         _state.value = UpdateState.Checking
@@ -147,84 +149,139 @@ class GitHubUpdateManager(private val context: Context) {
         return clean
     }
 
+    private fun buildUniqueApkFilename(baseName: String): String {
+        val dotIndex = baseName.lastIndexOf('.')
+        val stem = if (dotIndex > 0) baseName.substring(0, dotIndex) else baseName
+        val ext = if (dotIndex > 0) baseName.substring(dotIndex) else ".apk"
+        return "$stem-${System.currentTimeMillis() / 1000}$ext"
+    }
+
+    private fun enqueueDownloadManagerRequest(
+        release: GitHubRelease,
+        targetFileName: String
+    ): Long {
+        val encodedUrl = release.apkDownloadUrl.trim().replace(" ", "%20")
+        val request = DownloadManager.Request(Uri.parse(encodedUrl)).apply {
+            setTitle(targetFileName)
+            setDescription("Downloading AG Music Player ${release.tagName} to 0/Download")
+            setMimeType("application/vnd.android.package-archive")
+            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            // Saves directly into primary shared storage: 0/Download/<targetFileName>
+            setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, targetFileName)
+            addRequestHeader("User-Agent", "AG-Music-Player-Android")
+            addRequestHeader("Accept", "application/vnd.android.package-archive, application/octet-stream, */*")
+            setAllowedNetworkTypes(
+                DownloadManager.Request.NETWORK_WIFI or DownloadManager.Request.NETWORK_MOBILE
+            )
+            setAllowedOverMetered(true)
+            setAllowedOverRoaming(true)
+            setRequiresCharging(false)
+            setRequiresDeviceIdle(false)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                @Suppress("DEPRECATION")
+                allowScanningByMediaScanner()
+                @Suppress("DEPRECATION")
+                setVisibleInDownloadsUi(true)
+            }
+        }
+        return downloadManager.enqueue(request)
+    }
+
     suspend fun downloadAndInstall(release: GitHubRelease) {
         val safeName = sanitizeApkFilename(release.apkAssetName, release.tagName)
         @Suppress("DEPRECATION")
         val publicDownloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val expectedPublicFile = File(publicDownloadDir, safeName)
 
         lastApkFile = null
         lastApkUri = null
         _state.value = UpdateState.Downloading(release, 0, 0L, release.apkSizeBytes)
 
         withContext(Dispatchers.IO) {
-            var useDirectFallback = false
-            var downloadId = -1L
-
-            // Remove stale matching file on legacy Android versions so DownloadManager keeps exact clean filename
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            if (activeDownloadId >= 0L) {
                 try {
-                    if (!publicDownloadDir.exists()) publicDownloadDir.mkdirs()
-                    if (expectedPublicFile.exists()) expectedPublicFile.delete()
+                    downloadManager.remove(activeDownloadId)
                 } catch (_: Exception) {}
+                activeDownloadId = -1L
             }
 
-            try {
-                val request = DownloadManager.Request(Uri.parse(release.apkDownloadUrl)).apply {
-                    setTitle(safeName)
-                    setDescription("Downloading AG Music Player ${release.tagName}")
-                    setMimeType("application/vnd.android.package-archive")
-                    setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                    setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeName)
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                        @Suppress("DEPRECATION")
-                        allowScanningByMediaScanner()
-                    }
-                    setAllowedOverMetered(true)
-                    setAllowedOverRoaming(true)
+            var targetFileName = safeName
+            var retriedCollision = false
+
+            while (true) {
+                val expectedPublicFile = File(publicDownloadDir, targetFileName)
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    try {
+                        if (!publicDownloadDir.exists()) publicDownloadDir.mkdirs()
+                        if (expectedPublicFile.exists()) expectedPublicFile.delete()
+                    } catch (_: Exception) {}
                 }
-                downloadId = downloadManager.enqueue(request)
-            } catch (_: Exception) {
-                useDirectFallback = true
-            }
 
-            if (!useDirectFallback && downloadId >= 0L) {
+                val downloadId = try {
+                    enqueueDownloadManagerRequest(release, targetFileName)
+                } catch (e: Exception) {
+                    if (!retriedCollision) {
+                        retriedCollision = true
+                        targetFileName = buildUniqueApkFilename(safeName)
+                        continue
+                    }
+                    _state.value = UpdateState.Error(
+                        e.localizedMessage ?: "Android DownloadManager could not start APK download into 0/Download."
+                    )
+                    return@withContext
+                }
+
+                activeDownloadId = downloadId
                 var downloading = true
                 var pendingTicks = 0
-                while (downloading) {
+                var shouldRetryUniqueName = false
+
+                while (downloading && activeDownloadId == downloadId) {
                     var cursor: Cursor? = null
                     try {
                         val query = DownloadManager.Query().setFilterById(downloadId)
                         cursor = downloadManager.query(query)
                         if (cursor != null && cursor.moveToFirst()) {
                             val statusIdx = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                            val reasonIdx = cursor.getColumnIndex(DownloadManager.COLUMN_REASON)
                             val downloadedIdx = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
                             val totalIdx = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
                             val localUriIdx = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)
 
                             val status = if (statusIdx >= 0) cursor.getInt(statusIdx) else DownloadManager.STATUS_FAILED
-                            val downloaded = if (downloadedIdx >= 0) cursor.getLong(downloadedIdx) else 0L
+                            val reason = if (reasonIdx >= 0) cursor.getInt(reasonIdx) else 0
+                            val downloaded = if (downloadedIdx >= 0) cursor.getLong(downloadedIdx).coerceAtLeast(0L) else 0L
                             val rawTotal = if (totalIdx >= 0) cursor.getLong(totalIdx) else -1L
                             val total = if (rawTotal > 0L) rawTotal else release.apkSizeBytes
-                            val percent = if (total > 0L) ((downloaded * 100L) / total).toInt().coerceIn(0, 100) else 0
+                            val percent = if (total > 0L) {
+                                ((downloaded * 100L) / total).toInt().coerceIn(0, 99)
+                            } else 0
 
                             when (status) {
                                 DownloadManager.STATUS_SUCCESSFUL -> {
                                     downloading = false
+                                    activeDownloadId = -1L
+
                                     val dmContentUri = try {
                                         downloadManager.getUriForDownloadedFile(downloadId)
                                     } catch (_: Exception) {
                                         null
                                     }
-                                    val localPath = if (localUriIdx >= 0) {
-                                        cursor.getString(localUriIdx)?.let { Uri.parse(it).path }
-                                    } else null
-                                    val resolvedFile = localPath?.let { File(it) }?.takeIf { it.exists() && it.length() > 0L }
+
+                                    val localUriStr = if (localUriIdx >= 0) cursor.getString(localUriIdx) else null
+                                    val parsedLocalUri = localUriStr?.let { runCatching { Uri.parse(it) }.getOrNull() }
+                                    val localFile = if (parsedLocalUri?.scheme == "file") {
+                                        parsedLocalUri.path?.let { File(it) }?.takeIf { it.exists() && it.length() > 0L }
+                                    } else {
+                                        null
+                                    }
+                                    val resolvedFile = localFile
                                         ?: expectedPublicFile.takeIf { it.exists() && it.length() > 0L }
 
                                     if (resolvedFile == null && dmContentUri == null) {
-                                        useDirectFallback = true
-                                        break
+                                        _state.value = UpdateState.Error(
+                                            "Download completed in DownloadManager, but APK could not be located in 0/Download."
+                                        )
+                                        return@withContext
                                     }
 
                                     resolvedFile?.let { file ->
@@ -243,198 +300,119 @@ class GitHubUpdateManager(private val context: Context) {
                                     }
                                     return@withContext
                                 }
+
                                 DownloadManager.STATUS_FAILED -> {
                                     downloading = false
-                                    useDirectFallback = true
-                                }
-                                else -> {
-                                    if (downloaded == 0L && status == DownloadManager.STATUS_PENDING) {
-                                        pendingTicks++
-                                        if (pendingTicks > 40) {
-                                            downloading = false
-                                            useDirectFallback = true
-                                        }
+                                    activeDownloadId = -1L
+                                    try {
+                                        downloadManager.remove(downloadId)
+                                    } catch (_: Exception) {}
+
+                                    if (reason == DownloadManager.ERROR_FILE_ALREADY_EXISTS && !retriedCollision) {
+                                        retriedCollision = true
+                                        targetFileName = buildUniqueApkFilename(safeName)
+                                        shouldRetryUniqueName = true
                                     } else {
-                                        pendingTicks = 0
+                                        _state.value = UpdateState.Error(describeDownloadFailure(reason))
+                                        return@withContext
                                     }
+                                }
+
+                                DownloadManager.STATUS_PAUSED -> {
+                                    pendingTicks++
+                                    if (pendingTicks > MAX_PENDING_WAIT_TICKS && downloaded == 0L) {
+                                        downloading = false
+                                        activeDownloadId = -1L
+                                        try {
+                                            downloadManager.remove(downloadId)
+                                        } catch (_: Exception) {}
+                                        _state.value = UpdateState.Error(describePausedTimeout(reason))
+                                        return@withContext
+                                    }
+                                    _state.value = UpdateState.Downloading(release, percent, downloaded, total)
+                                }
+
+                                DownloadManager.STATUS_PENDING -> {
+                                    pendingTicks++
+                                    if (pendingTicks > MAX_PENDING_WAIT_TICKS && downloaded == 0L) {
+                                        downloading = false
+                                        activeDownloadId = -1L
+                                        try {
+                                            downloadManager.remove(downloadId)
+                                        } catch (_: Exception) {}
+                                        _state.value = UpdateState.Error(
+                                            "Android DownloadManager timed out waiting to start the download."
+                                        )
+                                        return@withContext
+                                    }
+                                    _state.value = UpdateState.Downloading(release, percent, downloaded, total)
+                                }
+
+                                DownloadManager.STATUS_RUNNING -> {
+                                    pendingTicks = 0
                                     _state.value = UpdateState.Downloading(release, percent, downloaded, total)
                                 }
                             }
                         } else {
                             pendingTicks++
-                            if (pendingTicks > 15) {
+                            if (pendingTicks > 40) {
                                 downloading = false
-                                useDirectFallback = true
+                                activeDownloadId = -1L
+                                _state.value = UpdateState.Error("Download was cancelled or removed from DownloadManager.")
+                                return@withContext
                             }
                         }
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
                         downloading = false
-                        useDirectFallback = true
+                        activeDownloadId = -1L
+                        _state.value = UpdateState.Error(
+                            e.localizedMessage ?: "Error monitoring Android DownloadManager."
+                        )
+                        return@withContext
                     } finally {
                         cursor?.close()
                     }
-                    if (downloading) delay(220L)
+                    if (downloading) delay(POLL_INTERVAL_MS)
                 }
 
-                if (useDirectFallback) {
-                    try {
-                        downloadManager.remove(downloadId)
-                    } catch (_: Exception) {}
+                if (!shouldRetryUniqueName) {
+                    return@withContext
                 }
-            }
-
-            if (useDirectFallback) {
-                directHttpDownloadToPublicDownloads(release, safeName)
             }
         }
     }
 
-    private suspend fun directHttpDownloadToPublicDownloads(release: GitHubRelease, safeName: String) {
-        var insertedMediaUri: Uri? = null
-        var legacyTargetFile: File? = null
-        try {
-            var currentUrl = release.apkDownloadUrl
-            var connection: HttpURLConnection? = null
-            var redirects = 0
-
-            while (redirects < 6) {
-                val conn = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    instanceFollowRedirects = false
-                    connectTimeout = 15_000
-                    readTimeout = 30_000
-                    setRequestProperty("User-Agent", "AG-Music-Player-Android")
-                }
-                val code = conn.responseCode
-                if (code in 300..399) {
-                    val loc = conn.getHeaderField("Location")
-                    conn.disconnect()
-                    if (loc.isNullOrBlank()) {
-                        throw IllegalStateException("Empty redirect location (HTTP $code)")
-                    }
-                    currentUrl = URL(URL(currentUrl), loc).toString()
-                    redirects++
-                } else {
-                    connection = conn
-                    break
-                }
-            }
-
-            val conn = connection ?: throw IllegalStateException("Too many redirects while downloading APK.")
-            try {
-                val code = conn.responseCode
-                if (code !in 200..299) {
-                    throw IllegalStateException("Download failed (HTTP $code).")
-                }
-
-                val contentLength = conn.contentLengthLong
-                val totalBytes = if (contentLength > 0L) contentLength else release.apkSizeBytes
-                var downloadedBytes = 0L
-                var lastEmitTime = 0L
-
-                val outputStream = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val values = ContentValues().apply {
-                        put(MediaStore.Downloads.DISPLAY_NAME, safeName)
-                        put(MediaStore.Downloads.MIME_TYPE, "application/vnd.android.package-archive")
-                        put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                        put(MediaStore.Downloads.IS_PENDING, 1)
-                    }
-                    val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-                    val uri = context.contentResolver.insert(collection, values)
-                        ?: throw IllegalStateException("Unable to save APK to public Download folder.")
-                    insertedMediaUri = uri
-                    context.contentResolver.openOutputStream(uri)
-                        ?: throw IllegalStateException("Unable to open public Download output stream.")
-                } else {
-                    @Suppress("DEPRECATION")
-                    val publicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    if (!publicDir.exists()) publicDir.mkdirs()
-                    val file = File(publicDir, safeName)
-                    if (file.exists()) file.delete()
-                    legacyTargetFile = file
-                    file.outputStream()
-                }
-
-                conn.inputStream.use { input ->
-                    outputStream.use { output ->
-                        val buffer = ByteArray(16 * 1024)
-                        while (true) {
-                            val read = input.read(buffer)
-                            if (read == -1) break
-                            output.write(buffer, 0, read)
-                            downloadedBytes += read
-
-                            val now = System.currentTimeMillis()
-                            if (now - lastEmitTime >= 150L) {
-                                lastEmitTime = now
-                                val percent = if (totalBytes > 0L) {
-                                    ((downloadedBytes * 100L) / totalBytes).toInt().coerceIn(0, 99)
-                                } else 0
-                                _state.value = UpdateState.Downloading(
-                                    release,
-                                    percent,
-                                    downloadedBytes,
-                                    totalBytes
-                                )
-                            }
-                        }
-                        output.flush()
-                    }
-                }
-
-                var finalFile: File? = legacyTargetFile
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && insertedMediaUri != null) {
-                    val publishValues = ContentValues().apply {
-                        put(MediaStore.Downloads.IS_PENDING, 0)
-                    }
-                    context.contentResolver.update(insertedMediaUri!!, publishValues, null, null)
-                    finalFile = resolveMediaStoreFilePath(insertedMediaUri!!)?.let { File(it) }
-                    finalFile?.absolutePath?.let { scanPublicDownloadFile(it) }
-                } else if (legacyTargetFile != null) {
-                    scanPublicDownloadFile(legacyTargetFile!!.absolutePath)
-                }
-
-                val finalSize = finalFile?.takeIf { it.exists() }?.length() ?: downloadedBytes
-                lastApkFile = finalFile
-                lastApkUri = insertedMediaUri
-
-                _state.value = UpdateState.Downloading(release, 100, finalSize, finalSize)
-                _state.value = UpdateState.ReadyToInstall(release, insertedMediaUri, finalFile)
-                withContext(Dispatchers.Main) {
-                    triggerApkInstall(finalFile, insertedMediaUri)
-                }
-            } finally {
-                conn.disconnect()
-            }
-        } catch (e: Exception) {
-            insertedMediaUri?.let { uri ->
-                try {
-                    context.contentResolver.delete(uri, null, null)
-                } catch (_: Exception) {}
-            }
-            legacyTargetFile?.let { file ->
-                if (file.exists()) file.delete()
-            }
-            _state.value = UpdateState.Error(e.localizedMessage ?: "Failed to download update APK.")
+    private fun describeDownloadFailure(reason: Int): String {
+        return when (reason) {
+            DownloadManager.ERROR_INSUFFICIENT_SPACE ->
+                "Not enough free space to save APK in 0/Download."
+            DownloadManager.ERROR_FILE_ALREADY_EXISTS ->
+                "An APK with the same name already exists in 0/Download."
+            DownloadManager.ERROR_CANNOT_RESUME ->
+                "DownloadManager could not resume the download. Please try again."
+            DownloadManager.ERROR_TOO_MANY_REDIRECTS ->
+                "Too many redirects while downloading APK via DownloadManager."
+            DownloadManager.ERROR_DEVICE_NOT_FOUND ->
+                "External storage (0/Download) is not available."
+            DownloadManager.ERROR_HTTP_DATA_ERROR ->
+                "Network data error while downloading APK via DownloadManager."
+            DownloadManager.ERROR_UNHANDLED_HTTP_CODE ->
+                "DownloadManager received an unexpected server response."
+            in 400..599 ->
+                "DownloadManager failed with HTTP $reason."
+            else ->
+                "Android DownloadManager failed to download APK (error $reason)."
         }
     }
 
-    private fun resolveMediaStoreFilePath(uri: Uri): String? {
-        return try {
-            context.contentResolver.query(
-                uri,
-                arrayOf(MediaStore.MediaColumns.DATA),
-                null,
-                null,
-                null
-            )?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val idx = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
-                    if (idx >= 0) cursor.getString(idx) else null
-                } else null
-            }
-        } catch (_: Exception) {
-            null
+    private fun describePausedTimeout(reason: Int): String {
+        return when (reason) {
+            DownloadManager.PAUSED_WAITING_FOR_NETWORK ->
+                "DownloadManager is waiting for an active network connection."
+            DownloadManager.PAUSED_QUEUED_FOR_WIFI ->
+                "DownloadManager is waiting for Wi-Fi connection."
+            else ->
+                "DownloadManager paused too long while downloading APK (reason $reason)."
         }
     }
 

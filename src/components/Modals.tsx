@@ -486,7 +486,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
 
         {state.status === 'downloading' && (
           <div className="space-y-4">
-            <h3 className="text-lg font-bold tracking-tight">Update Available Now</h3>
+            <h3 className="text-lg font-bold tracking-tight">Downloading Update</h3>
 
             <div className="space-y-1.5 text-sm">
               <p className="text-[#6B675E] dark:text-[#9E9A90]">
@@ -500,6 +500,9 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
                 <span className="font-mono-tabular font-semibold text-[var(--accent)]">
                   v{state.release.version}
                 </span>
+              </p>
+              <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
+                Saving via DownloadManager → <span className="font-mono-tabular">0/Download/{state.release.apkName}</span>
               </p>
             </div>
 
@@ -530,6 +533,9 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
                 <span className="font-mono-tabular font-semibold text-[var(--accent)]">
                   v{state.release.version}
                 </span>
+              </p>
+              <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
+                Saved to <span className="font-mono-tabular">0/Download/{state.release.apkName}</span>
               </p>
             </div>
 

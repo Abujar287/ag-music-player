@@ -74,12 +74,30 @@ class MainActivity : ComponentActivity() {
     private var pendingDeleteUri: Uri? = null
     private var pendingDeleteFilePath: String? = null
     private var pendingDeleteIsCreateRequest: Boolean = false
+    private var pendingUpdateRelease: GitHubRelease? = null
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         if (hasAudioPermission()) {
             scanLocalAudioAndNotify(isManual = false)
+        }
+    }
+
+    private val writeStorageLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val release = pendingUpdateRelease
+        pendingUpdateRelease = null
+        if (release != null) {
+            if (granted) {
+                lifecycleScope.launch {
+                    updateManager.downloadAndInstall(release)
+                }
+            } else {
+                val qMsg = JSONObject.quote("Storage permission is required to save update APK to 0/Download.")
+                evalJs("window.__agUpdateCallbacks?.onError?.($qMsg);")
+            }
         }
     }
 
@@ -687,6 +705,24 @@ class MainActivity : ComponentActivity() {
         } catch (_: Exception) {}
     }
 
+    fun startDownloadManagerUpdate(release: GitHubRelease) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingUpdateRelease = release
+            runOnUiThread {
+                writeStorageLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+            return
+        }
+        lifecycleScope.launch {
+            updateManager.downloadAndInstall(release)
+        }
+    }
+
     override fun onDestroy() {
         progressJob?.cancel()
         controllerFuture?.let { MediaController.releaseFuture(it) }
@@ -739,9 +775,7 @@ class WebAppInterface(private val activity: MainActivity, private val updateMana
             apkDownloadUrl = apkUrl,
             apkSizeBytes = apkSizeBytes
         )
-        activity.lifecycleScope.launch {
-            updateManager.downloadAndInstall(release)
-        }
+        activity.startDownloadManagerUpdate(release)
     }
 
     @JavascriptInterface

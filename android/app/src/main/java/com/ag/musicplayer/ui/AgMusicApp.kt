@@ -847,7 +847,7 @@ fun AgMusicApp(
                             color = Color(0xFFD4AF37)
                         )
                         Spacer(Modifier.height(8.dp))
-                        Text("${state.progressPercent}% downloaded to System Downloads", color = Color(0xFF9E9A90))
+                        Text("${state.progressPercent}% downloaded to 0/Download via DownloadManager", color = Color(0xFF9E9A90))
                     }
                 },
                 confirmButton = {}
