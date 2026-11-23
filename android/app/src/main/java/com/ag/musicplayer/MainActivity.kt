@@ -11,7 +11,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.lifecycleScope
 import com.ag.musicplayer.updater.GitHubUpdateManager
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -80,7 +82,7 @@ class MainActivity : ComponentActivity() {
 class WebAppInterface(private val activity: MainActivity, private val updateManager: GitHubUpdateManager) {
     @JavascriptInterface
     fun checkForUpdates() {
-        activity.runOnUiThread {
+        activity.lifecycleScope.launch {
             updateManager.checkForUpdates()
         }
     }
