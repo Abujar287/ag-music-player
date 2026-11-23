@@ -9,6 +9,8 @@ data class Track(
     val album: String,
     val genre: String,
     val folderPath: String,
+    val folder: String = folderPath,
+    val mediaType: String = "audio",
     val filePath: String,
     val contentUri: Uri,
     val albumArtUri: Uri?,
@@ -40,6 +42,7 @@ enum class EqPreset(val label: String, val bandsMb: List<Int>) {
 data class AppSettings(
     val isDarkMode: Boolean = true,
     val accentHex: Long = 0xFFD4AF37,
+    val autoSyncPermission: Boolean = true,
     val filterShortClips: Boolean = true,
     val minDurationSec: Int = 30,
     val minSizeKb: Int = 500,

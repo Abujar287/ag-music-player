@@ -1,5 +1,6 @@
 package com.ag.musicplayer.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
@@ -62,23 +63,23 @@ fun AgMusicApp(
     }
 
     val albums = remember(tracks) {
-        tracks.groupBy { it.album }.map { (album, list) ->
-            Triple(album, list.firstOrNull()?.artist ?: "Unknown", list.size)
+        tracks.groupBy { it.album }.entries.map { entry ->
+            Triple(entry.key, entry.value.firstOrNull()?.artist ?: "Unknown", entry.value.size)
         }
     }
     val artists = remember(tracks) {
-        tracks.groupBy { it.artist }.map { (artist, list) ->
-            Pair(artist, list.size)
+        tracks.groupBy { it.artist }.entries.map { entry ->
+            Pair(entry.key, entry.value.size)
         }
     }
     val genres = remember(tracks) {
-        tracks.groupBy { it.genre }.map { (genre, list) ->
-            Pair(genre, list.size)
+        tracks.groupBy { it.genre }.entries.map { entry ->
+            Pair(entry.key, entry.value.size)
         }
     }
     val folders = remember(tracks) {
-        tracks.groupBy { it.folder }.map { (folder, list) ->
-            Pair(folder, list.size)
+        tracks.groupBy { it.folder }.entries.map { entry ->
+            Pair(entry.key, entry.value.size)
         }
     }
 
