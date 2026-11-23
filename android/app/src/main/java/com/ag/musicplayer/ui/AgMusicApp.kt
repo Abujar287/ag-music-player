@@ -55,6 +55,19 @@ fun AgMusicApp(
     var isSearching by remember { mutableStateOf(false) }
     var drawerSection by remember { mutableStateOf("menu") }
 
+    // Filtering states
+    var selectedFolder by remember { mutableStateOf<String?>(null) }
+    var selectedAlbum by remember { mutableStateOf<String?>(null) }
+    var selectedArtist by remember { mutableStateOf<String?>(null) }
+    var selectedGenre by remember { mutableStateOf<String?>(null) }
+
+    // Playback state extras
+    var isShuffle by remember { mutableStateOf(false) }
+    var repeatMode by remember { mutableStateOf("off") } // off, all, one
+    var isFavorite by remember { mutableStateOf(false) }
+    var positionSec by remember { mutableStateOf(0f) }
+    var showQueueSheet by remember { mutableStateOf(false) }
+
     val audioTracks = remember(tracks, searchQuery) {
         tracks.filter { it.mediaType != "video" && (searchQuery.isBlank() || it.title.contains(searchQuery, true) || it.artist.contains(searchQuery, true)) }
     }
@@ -80,6 +93,18 @@ fun AgMusicApp(
     val folders = remember(tracks) {
         tracks.groupBy { it.folder }.entries.map { entry ->
             Pair(entry.key, entry.value.size)
+        }
+    }
+
+    // Filtered track list for the active view
+    val displayedTracks = remember(audioTracks, activeTab, selectedFolder, selectedAlbum, selectedArtist, selectedGenre) {
+        when (activeTab) {
+            "tracks" -> audioTracks
+            "folders" -> if (selectedFolder != null) audioTracks.filter { it.folder == selectedFolder } else emptyList()
+            "albums" -> if (selectedAlbum != null) audioTracks.filter { it.album == selectedAlbum } else emptyList()
+            "artists" -> if (selectedArtist != null) audioTracks.filter { it.artist == selectedArtist } else emptyList()
+            "genres" -> if (selectedGenre != null) audioTracks.filter { it.genre == selectedGenre } else emptyList()
+            else -> audioTracks
         }
     }
 
@@ -157,12 +182,12 @@ fun AgMusicApp(
                     } else if (drawerSection == "theme") {
                         Column(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("Appearance", fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
-                            Text("Dark Obsidian Theme Active", color = Color(0xFF9E9A90))
+                            Text("Dark Obsidian & Metallic Gold Theme Active", color = Color(0xFF9E9A90))
                         }
                     } else if (drawerSection == "equalizer") {
                         Column(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("Equalizer Presets", fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
-                            Text("Normal, Bass Boost, Rock, Pop, Classical", color = Color(0xFF9E9A90))
+                            Text("Normal, Bass Boost, Rock, Pop, Classical (DSP Active)", color = Color(0xFF9E9A90))
                         }
                     } else if (drawerSection == "widget") {
                         Column(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -240,8 +265,8 @@ fun AgMusicApp(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(track.artist, style = MaterialTheme.typography.bodySmall, color = Color(0xFF9E9A90), maxLines = 1)
+                                Text(track.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFFF5F3EE))
+                                Text("${track.artist} · ${track.album}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9E9A90), maxLines = 1)
                             }
                             IconButton(
                                 onClick = {
@@ -285,7 +310,13 @@ fun AgMusicApp(
                     items(categories) { cat ->
                         val selected = activeTab == cat.first
                         Surface(
-                            onClick = { activeTab = cat.first },
+                            onClick = {
+                                activeTab = cat.first
+                                if (cat.first == "folders") selectedFolder = null
+                                if (cat.first == "albums") selectedAlbum = null
+                                if (cat.first == "artists") selectedArtist = null
+                                if (cat.first == "genres") selectedGenre = null
+                            },
                             color = if (selected) Color(0xFF2A2410) else Color(0xFF141417),
                             shape = RoundedCornerShape(16.dp),
                             border = BorderStroke(1.dp, if (selected) Color(0xFFD4AF37) else Color(0xFF27272C)),
@@ -304,14 +335,68 @@ fun AgMusicApp(
 
                 HorizontalDivider(color = Color(0xFF27272C))
 
-                // List content based on activeTab
+                // Breadcrumb header if inside a subfolder/album/artist/genre
+                if (activeTab == "folders" && selectedFolder != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(onClick = { selectedFolder = null }) {
+                            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color(0xFFD4AF37))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Back to Folders", color = Color(0xFFD4AF37), fontWeight = FontWeight.Bold)
+                        }
+                        Text("• $selectedFolder", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF9E9A90), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                } else if (activeTab == "albums" && selectedAlbum != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(onClick = { selectedAlbum = null }) {
+                            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color(0xFFD4AF37))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Back to Albums", color = Color(0xFFD4AF37), fontWeight = FontWeight.Bold)
+                        }
+                        Text("• $selectedAlbum", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF9E9A90), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                } else if (activeTab == "artists" && selectedArtist != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(onClick = { selectedArtist = null }) {
+                            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color(0xFFD4AF37))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Back to Artists", color = Color(0xFFD4AF37), fontWeight = FontWeight.Bold)
+                        }
+                        Text("• $selectedArtist", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF9E9A90), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                } else if (activeTab == "genres" && selectedGenre != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(onClick = { selectedGenre = null }) {
+                            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color(0xFFD4AF37))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Back to Genres", color = Color(0xFFD4AF37), fontWeight = FontWeight.Bold)
+                        }
+                        Text("• $selectedGenre", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF9E9A90), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+
+                // List content based on activeTab and selection
                 LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (activeTab == "tracks" || activeTab == "folders") {
-                        val list = if (activeTab == "tracks") audioTracks else tracks
-                        items(list, key = { it.id }) { track ->
+                    if (activeTab == "tracks") {
+                        items(audioTracks, key = { it.id }) { track ->
                             ListItem(
-                                headlineContent = { Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                supportingContent = { Text("${track.artist} · ${track.album}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                headlineContent = { Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFFF5F3EE)) },
+                                supportingContent = { Text("${track.artist} · ${track.album}", maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFF9E9A90)) },
                                 trailingContent = {
                                     IconButton(onClick = { mediaScanner.shareTrack(track) }) {
                                         Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = Color(0xFF9E9A90))
@@ -337,35 +422,140 @@ fun AgMusicApp(
                                 colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
                             )
                         }
+                    } else if (activeTab == "folders") {
+                        if (selectedFolder == null) {
+                            items(folders) { folder ->
+                                ListItem(
+                                    headlineContent = { Text(folder.first, fontWeight = FontWeight.Bold, color = Color(0xFFF5F3EE)) },
+                                    supportingContent = { Text("${folder.second} audio files", color = Color(0xFF9E9A90)) },
+                                    leadingContent = { Icon(Icons.Default.Folder, contentDescription = null, tint = Color(0xFFD4AF37)) },
+                                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF9E9A90)) },
+                                    modifier = Modifier.clickable { selectedFolder = folder.first },
+                                    colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                                )
+                            }
+                        } else {
+                            val folderTracks = audioTracks.filter { it.folder == selectedFolder }
+                            items(folderTracks, key = { it.id }) { track ->
+                                ListItem(
+                                    headlineContent = { Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFFF5F3EE)) },
+                                    supportingContent = { Text("${track.artist} · ${track.album}", maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFF9E9A90)) },
+                                    modifier = Modifier.clickable {
+                                        currentTrack = track
+                                        isPlaying = true
+                                        val item = MediaItem.Builder()
+                                            .setUri(track.contentUri)
+                                            .setMediaMetadata(
+                                                MediaMetadata.Builder()
+                                                    .setTitle(track.title)
+                                                    .setArtist(track.artist)
+                                                    .setAlbumTitle(track.album)
+                                                    .build()
+                                            )
+                                            .build()
+                                        mediaController?.setMediaItem(item)
+                                        mediaController?.prepare()
+                                        mediaController?.play()
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                                )
+                            }
+                        }
                     } else if (activeTab == "albums") {
-                        items(albums) { alb ->
-                            ListItem(
-                                headlineContent = { Text(alb.first, fontWeight = FontWeight.Bold) },
-                                supportingContent = { Text("Artist: ${alb.second} · ${alb.third} tracks") },
-                                colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
-                            )
+                        if (selectedAlbum == null) {
+                            items(albums) { alb ->
+                                ListItem(
+                                    headlineContent = { Text(alb.first, fontWeight = FontWeight.Bold, color = Color(0xFFF5F3EE)) },
+                                    supportingContent = { Text("Artist: ${alb.second} · ${alb.third} tracks", color = Color(0xFF9E9A90)) },
+                                    leadingContent = { Icon(Icons.Default.Album, contentDescription = null, tint = Color(0xFFD4AF37)) },
+                                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF9E9A90)) },
+                                    modifier = Modifier.clickable { selectedAlbum = alb.first },
+                                    colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                                )
+                            }
+                        } else {
+                            val albumTracks = audioTracks.filter { it.album == selectedAlbum }
+                            items(albumTracks, key = { it.id }) { track ->
+                                ListItem(
+                                    headlineContent = { Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFFF5F3EE)) },
+                                    supportingContent = { Text("${track.artist}", maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFF9E9A90)) },
+                                    modifier = Modifier.clickable {
+                                        currentTrack = track
+                                        isPlaying = true
+                                        val item = MediaItem.Builder().setUri(track.contentUri).build()
+                                        mediaController?.setMediaItem(item)
+                                        mediaController?.prepare()
+                                        mediaController?.play()
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                                )
+                            }
                         }
                     } else if (activeTab == "artists") {
-                        items(artists) { art ->
-                            ListItem(
-                                headlineContent = { Text(art.first, fontWeight = FontWeight.Bold) },
-                                supportingContent = { Text("${art.second} tracks") },
-                                colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
-                            )
+                        if (selectedArtist == null) {
+                            items(artists) { art ->
+                                ListItem(
+                                    headlineContent = { Text(art.first, fontWeight = FontWeight.Bold, color = Color(0xFFF5F3EE)) },
+                                    supportingContent = { Text("${art.second} tracks", color = Color(0xFF9E9A90)) },
+                                    leadingContent = { Icon(Icons.Default.Person, contentDescription = null, tint = Color(0xFFD4AF37)) },
+                                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF9E9A90)) },
+                                    modifier = Modifier.clickable { selectedArtist = art.first },
+                                    colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                                )
+                            }
+                        } else {
+                            val artistTracks = audioTracks.filter { it.artist == selectedArtist }
+                            items(artistTracks, key = { it.id }) { track ->
+                                ListItem(
+                                    headlineContent = { Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFFF5F3EE)) },
+                                    supportingContent = { Text("${track.album}", maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFF9E9A90)) },
+                                    modifier = Modifier.clickable {
+                                        currentTrack = track
+                                        isPlaying = true
+                                        val item = MediaItem.Builder().setUri(track.contentUri).build()
+                                        mediaController?.setMediaItem(item)
+                                        mediaController?.prepare()
+                                        mediaController?.play()
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                                )
+                            }
                         }
                     } else if (activeTab == "genres") {
-                        items(genres) { gen ->
-                            ListItem(
-                                headlineContent = { Text(gen.first, fontWeight = FontWeight.Bold) },
-                                supportingContent = { Text("${gen.second} tracks") },
-                                colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
-                            )
+                        if (selectedGenre == null) {
+                            items(genres) { gen ->
+                                ListItem(
+                                    headlineContent = { Text(gen.first, fontWeight = FontWeight.Bold, color = Color(0xFFF5F3EE)) },
+                                    supportingContent = { Text("${gen.second} tracks", color = Color(0xFF9E9A90)) },
+                                    leadingContent = { Icon(Icons.Default.Category, contentDescription = null, tint = Color(0xFFD4AF37)) },
+                                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF9E9A90)) },
+                                    modifier = Modifier.clickable { selectedGenre = gen.first },
+                                    colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                                )
+                            }
+                        } else {
+                            val genreTracks = audioTracks.filter { it.genre == selectedGenre }
+                            items(genreTracks, key = { it.id }) { track ->
+                                ListItem(
+                                    headlineContent = { Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFFF5F3EE)) },
+                                    supportingContent = { Text("${track.artist} · ${track.album}", maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFF9E9A90)) },
+                                    modifier = Modifier.clickable {
+                                        currentTrack = track
+                                        isPlaying = true
+                                        val item = MediaItem.Builder().setUri(track.contentUri).build()
+                                        mediaController?.setMediaItem(item)
+                                        mediaController?.prepare()
+                                        mediaController?.play()
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                                )
+                            }
                         }
                     } else if (activeTab == "videos") {
                         items(videos, key = { it.id }) { vid ->
                             ListItem(
-                                headlineContent = { Text(vid.title, maxLines = 1) },
-                                supportingContent = { Text("Music Video · ${vid.artist}") },
+                                headlineContent = { Text(vid.title, maxLines = 1, color = Color(0xFFF5F3EE)) },
+                                supportingContent = { Text("Music Video · ${vid.artist}", color = Color(0xFF9E9A90)) },
                                 trailingContent = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFFD4AF37)) },
                                 modifier = Modifier.clickable {
                                     currentTrack = vid
@@ -384,6 +574,7 @@ fun AgMusicApp(
         }
     }
 
+    // Gorgeous Now Playing Bottom Sheet matching Web Preview
     if (showNowPlaying && currentTrack != null) {
         ModalBottomSheet(
             onDismissRequest = { showNowPlaying = false },
@@ -391,36 +582,212 @@ fun AgMusicApp(
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                Text(
-                    text = currentTrack!!.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.basicMarquee(),
-                    color = Color(0xFFF5F3EE)
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(currentTrack!!.artist, color = Color(0xFF9E9A90))
-                Spacer(Modifier.height(24.dp))
-                IconButton(
-                    onClick = {
-                        if (isPlaying) mediaController?.pause() else mediaController?.play()
-                        isPlaying = !isPlaying
-                    },
+                // Top Header inside sheet
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { showNowPlaying = false }) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Minimize", tint = Color(0xFFF5F3EE))
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = currentTrack!!.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = Color(0xFFF5F3EE)
+                        )
+                        Text(
+                            text = "${currentTrack!!.artist} · ${currentTrack!!.album}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF9E9A90),
+                            maxLines = 1
+                        )
+                    }
+                    IconButton(onClick = { showQueueSheet = true }) {
+                        Icon(Icons.Default.QueueMusic, contentDescription = "Queue", tint = Color(0xFFD4AF37))
+                    }
+                }
+
+                // Vinyl artwork stage
+                Box(
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(220.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFD4AF37))
+                        .background(Color(0xFF0B0B0D))
+                        .border(2.dp, Color(0xFFD4AF37).copy(alpha = 0.5f), CircleShape),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "Play/Pause",
-                        tint = Color(0xFF0B0B0D),
-                        modifier = Modifier.size(36.dp)
+                        Icons.Default.DiscFull,
+                        contentDescription = null,
+                        modifier = Modifier.size(120.dp),
+                        tint = Color(0xFFD4AF37)
                     )
                 }
-                Spacer(Modifier.height(24.dp))
+
+                // 1st Row: Favorite, Sleep Timer, Options
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { isFavorite = !isFavorite }) {
+                        Icon(
+                            if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = null,
+                            tint = Color(0xFFD4AF37)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Favorite", color = Color(0xFFF5F3EE))
+                    }
+                    TextButton(onClick = { /* Sleep timer toggle */ }) {
+                        Icon(Icons.Default.Bedtime, contentDescription = null, tint = Color(0xFFD4AF37))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Sleep Timer", color = Color(0xFFF5F3EE))
+                    }
+                    IconButton(onClick = { mediaScanner.shareTrack(currentTrack!!) }) {
+                        Icon(Icons.Default.Share, contentDescription = "Share", tint = Color(0xFF9E9A90))
+                    }
+                }
+
+                // 2nd Row: Duration Seek Bar
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Slider(
+                        value = positionSec,
+                        onValueChange = { positionSec = it },
+                        valueRange = 0f..(if (currentTrack!!.durationSec > 0) currentTrack!!.durationSec.toFloat() else 100f),
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFFD4AF37),
+                            activeTrackColor = Color(0xFFD4AF37),
+                            inactiveTrackColor = Color(0xFF27272C)
+                        )
+                    )
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${positionSec.toInt()}s", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9E9A90))
+                        Text("${currentTrack!!.durationSec}s", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9E9A90))
+                    }
+                }
+
+                // 3rd Row: Shuffle, Prev, Play/Pause, Next, Repeat
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { isShuffle = !isShuffle }) {
+                        Icon(
+                            Icons.Default.Shuffle,
+                            contentDescription = "Shuffle",
+                            tint = if (isShuffle) Color(0xFFD4AF37) else Color(0xFF9E9A90)
+                        )
+                    }
+
+                    IconButton(onClick = {
+                        val currIdx = audioTracks.indexOfFirst { it.id == currentTrack?.id }
+                        if (currIdx > 0) {
+                            currentTrack = audioTracks[currIdx - 1]
+                            mediaController?.setMediaItem(MediaItem.fromUri(currentTrack!!.contentUri))
+                            mediaController?.prepare()
+                            mediaController?.play()
+                        }
+                    }) {
+                        Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = Color(0xFFF5F3EE))
+                    }
+
+                    // Prominent Highlighted Play/Pause Button
+                    IconButton(
+                        onClick = {
+                            if (isPlaying) mediaController?.pause() else mediaController?.play()
+                            isPlaying = !isPlaying
+                        },
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFD4AF37))
+                    ) {
+                        Icon(
+                            if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = "Play/Pause",
+                            tint = Color(0xFF0B0B0D),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+
+                    IconButton(onClick = {
+                        val currIdx = audioTracks.indexOfFirst { it.id == currentTrack?.id }
+                        if (currIdx >= 0 && currIdx < audioTracks.size - 1) {
+                            currentTrack = audioTracks[currIdx + 1]
+                            mediaController?.setMediaItem(MediaItem.fromUri(currentTrack!!.contentUri))
+                            mediaController?.prepare()
+                            mediaController?.play()
+                        }
+                    }) {
+                        Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color(0xFFF5F3EE))
+                    }
+
+                    IconButton(onClick = {
+                        repeatMode = when (repeatMode) {
+                            "off" -> "all"
+                            "all" -> "one"
+                            else -> "off"
+                        }
+                    }) {
+                        Icon(
+                            Icons.Default.Repeat,
+                            contentDescription = "Repeat",
+                            tint = if (repeatMode != "off") Color(0xFFD4AF37) else Color(0xFF9E9A90)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Queue Sheet Modal
+    if (showQueueSheet && currentTrack != null) {
+        ModalBottomSheet(
+            onDismissRequest = { showQueueSheet = false },
+            containerColor = Color(0xFF141417)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(24.dp).heightIn(max = 400.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Up Next Queue (${audioTracks.size} tracks)", fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
+                    IconButton(onClick = { showQueueSheet = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFFF5F3EE))
+                    }
+                }
+                HorizontalDivider(color = Color(0xFF27272C))
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(audioTracks, key = { it.id }) { t ->
+                        val isCurrent = t.id == currentTrack?.id
+                        ListItem(
+                            headlineContent = { Text(t.title, color = if (isCurrent) Color(0xFFD4AF37) else Color(0xFFF5F3EE), fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal) },
+                            supportingContent = { Text(t.artist, color = Color(0xFF9E9A90)) },
+                            modifier = Modifier.clickable {
+                                currentTrack = t
+                                isPlaying = true
+                                mediaController?.setMediaItem(MediaItem.fromUri(t.contentUri))
+                                mediaController?.prepare()
+                                mediaController?.play()
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color(0xFF1C1C21))
+                        )
+                    }
+                }
             }
         }
     }
@@ -479,7 +846,7 @@ fun AgMusicApp(
                             color = Color(0xFFD4AF37)
                         )
                         Spacer(Modifier.height(8.dp))
-                        Text("${state.progressPercent}% downloaded to System Downloads")
+                        Text("${state.progressPercent}% downloaded to System Downloads", color = Color(0xFF9E9A90))
                     }
                 },
                 confirmButton = {}
