@@ -1,0 +1,6 @@
+{
+  "name": "Music Player",
+  "description": "AG Music Player — Modern, high-contrast, offline-first Android music player with 5-band equalizer, playlist manager, GitHub auto-updater, and automated APK CI/CD pipeline.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

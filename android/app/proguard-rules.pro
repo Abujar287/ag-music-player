@@ -1,0 +1,3 @@
+-keep class com.ag.musicplayer.updater.** { *; }
+-keep class com.ag.musicplayer.data.** { *; }
+-dontwarn org.json.**
