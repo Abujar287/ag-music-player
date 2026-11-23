@@ -2,6 +2,7 @@ package com.ag.musicplayer.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -662,7 +663,7 @@ fun AgMusicApp(
                     Slider(
                         value = positionSec,
                         onValueChange = { positionSec = it },
-                        valueRange = 0f..(if (currentTrack!!.durationSec > 0) currentTrack!!.durationSec.toFloat() else 100f),
+                        valueRange = 0f..(if (currentTrack!!.durationMs > 0) (currentTrack!!.durationMs / 1000f) else 100f),
                         colors = SliderDefaults.colors(
                             thumbColor = Color(0xFFD4AF37),
                             activeTrackColor = Color(0xFFD4AF37),
@@ -671,7 +672,7 @@ fun AgMusicApp(
                     )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("${positionSec.toInt()}s", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9E9A90))
-                        Text("${currentTrack!!.durationSec}s", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9E9A90))
+                        Text("${(currentTrack!!.durationMs / 1000f).toInt()}s", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9E9A90))
                     }
                 }
 
