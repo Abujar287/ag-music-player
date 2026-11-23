@@ -14095,25 +14095,7 @@ var DEFAULT_SETTINGS = {
 	notificationControls: true
 };
 var DEFAULT_TRACKS = [];
-var DEFAULT_PLAYLISTS = [{
-	id: "pl-favorites",
-	name: "Late Night Vinyl",
-	trackIds: [
-		"trk-obsidian-1",
-		"trk-nocturne-1",
-		"trk-golden-1"
-	],
-	createdAt: Date.now() - 2592e5
-}, {
-	id: "pl-focus",
-	name: "Deep Studio Focus",
-	trackIds: [
-		"trk-golden-1",
-		"trk-desert-1",
-		"trk-obsidian-2"
-	],
-	createdAt: Date.now() - 864e5
-}];
+var DEFAULT_PLAYLISTS = [];
 // src/components/SideDrawer.tsx
 var MENU_LIST = [
 	{
@@ -14428,10 +14410,10 @@ var SideDrawer = ({ open, onClose, settings, onUpdateSettings, equalizer, onUpda
 												className: "flex-1 min-w-0",
 												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 													className: "text-xs font-semibold truncate",
-													children: currentTrack?.title ?? "Obsidian Echoes"
+													children: currentTrack?.title ?? "No track selected"
 												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 													className: "text-[11px] text-[#9E9A90] truncate",
-													children: currentTrack?.artist ?? "Kaelen Vance"
+													children: currentTrack?.artist ?? "AG Music Player"
 												})]
 											}),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -14481,14 +14463,10 @@ var SideDrawer = ({ open, onClose, settings, onUpdateSettings, equalizer, onUpda
 												className: "min-w-0 flex-1",
 												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 													className: "text-sm font-semibold truncate",
-													children: currentTrack?.title ?? "Obsidian Echoes"
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+													children: currentTrack?.title ?? "No track selected"
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 													className: "text-xs text-[#9E9A90] truncate",
-													children: [
-														currentTrack?.artist ?? "Kaelen Vance",
-														" · ",
-														currentTrack?.album ?? "Obsidian Echoes"
-													]
+													children: currentTrack ? `${currentTrack.artist} · ${currentTrack.album}` : "AG Music Player"
 												})]
 											})]
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -14727,7 +14705,7 @@ function loadInitialTracks() {
 		const raw = localStorage.getItem(STORAGE_KEYS.tracks);
 		if (raw) {
 			const parsed = JSON.parse(raw);
-			if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((t) => !t.audioUrl?.startsWith("blob:"));
+			if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((t) => !t.audioUrl?.startsWith("blob:") && !t.id.startsWith("trk-"));
 		}
 	} catch {}
 	return DEFAULT_TRACKS;
@@ -14737,7 +14715,7 @@ function loadInitialPlaylists() {
 		const raw = localStorage.getItem(STORAGE_KEYS.playlists);
 		if (raw) {
 			const parsed = JSON.parse(raw);
-			if (Array.isArray(parsed)) return parsed;
+			if (Array.isArray(parsed)) return parsed.filter((pl) => !((pl.id === "pl-favorites" || pl.id === "pl-focus") && Array.isArray(pl.trackIds) && pl.trackIds.every((id) => id.startsWith("trk-"))));
 		}
 	} catch {}
 	return DEFAULT_PLAYLISTS;
@@ -15901,7 +15879,10 @@ function App() {
 								}) : audioTracks.map(renderTrackRow)
 							}) : activeTab === "albums" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 								className: "grid grid-cols-2 sm:grid-cols-3 gap-4",
-								children: albums.map((alb) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								children: albums.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "col-span-full py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]",
+									children: "No albums found."
+								}) : albums.map((alb) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 									onClick: () => setDrillFilter({
 										type: "album",
 										value: alb.name,
@@ -15938,7 +15919,10 @@ function App() {
 								}, alb.name))
 							}) : activeTab === "artists" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 								className: "divide-y divide-black/5 dark:divide-white/5",
-								children: artists.map((art) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								children: artists.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]",
+									children: "No artists found."
+								}) : artists.map((art) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 									onClick: () => setDrillFilter({
 										type: "artist",
 										value: art.name,
@@ -15974,7 +15958,10 @@ function App() {
 								}, art.name))
 							}) : activeTab === "folders" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 								className: "divide-y divide-black/5 dark:divide-white/5",
-								children: folders.map((fld) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								children: folders.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]",
+									children: "No folders found."
+								}) : folders.map((fld) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 									onClick: () => setDrillFilter({
 										type: "folder",
 										value: fld.path,
@@ -16049,7 +16036,10 @@ function App() {
 								}, vid.id))
 							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 								className: "grid grid-cols-2 sm:grid-cols-3 gap-3",
-								children: genres.map((g) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								children: genres.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "col-span-full py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]",
+									children: "No genres found."
+								}) : genres.map((g) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 									onClick: () => setDrillFilter({
 										type: "genre",
 										value: g.name,

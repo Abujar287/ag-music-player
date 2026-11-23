@@ -79,7 +79,7 @@ function loadInitialTracks(): Track[] {
     if (raw) {
       const parsed = JSON.parse(raw) as Track[];
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter((t) => !t.audioUrl?.startsWith('blob:'));
+        return parsed.filter((t) => !t.audioUrl?.startsWith('blob:') && !t.id.startsWith('trk-'));
       }
     }
   } catch {
@@ -93,7 +93,16 @@ function loadInitialPlaylists(): Playlist[] {
     const raw = localStorage.getItem(STORAGE_KEYS.playlists);
     if (raw) {
       const parsed = JSON.parse(raw) as Playlist[];
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (pl) =>
+            !(
+              (pl.id === 'pl-favorites' || pl.id === 'pl-focus') &&
+              Array.isArray(pl.trackIds) &&
+              pl.trackIds.every((id) => id.startsWith('trk-'))
+            )
+        );
+      }
     }
   } catch {
     // ignore
@@ -1574,84 +1583,102 @@ export default function App() {
               </div>
             ) : activeTab === 'albums' ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {albums.map((alb) => (
-                  <button
-                    key={alb.name}
-                    onClick={() =>
-                      setDrillFilter({ type: 'album', value: alb.name, label: alb.name })
-                    }
-                    className="group text-left rounded-2xl bg-black/[0.03] dark:bg-[#141417] border border-black/10 dark:border-white/10 p-3 hover:border-[var(--accent)]/60 transition-colors"
-                  >
-                    <div className="aspect-square rounded-xl overflow-hidden bg-black/10 dark:bg-white/10 mb-3">
-                      <CoverImage
-                        src={alb.coverUrl}
-                        alt={alb.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        fallback={
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Disc3 className="w-10 h-10 text-[var(--accent)] opacity-70" />
-                          </div>
-                        }
-                      />
-                    </div>
-                    <p className="text-sm font-semibold truncate">{alb.name}</p>
-                    <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
-                      {alb.artist} · {alb.count} tracks
-                    </p>
-                  </button>
-                ))}
+                {albums.length === 0 ? (
+                  <div className="col-span-full py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]">
+                    No albums found.
+                  </div>
+                ) : (
+                  albums.map((alb) => (
+                    <button
+                      key={alb.name}
+                      onClick={() =>
+                        setDrillFilter({ type: 'album', value: alb.name, label: alb.name })
+                      }
+                      className="group text-left rounded-2xl bg-black/[0.03] dark:bg-[#141417] border border-black/10 dark:border-white/10 p-3 hover:border-[var(--accent)]/60 transition-colors"
+                    >
+                      <div className="aspect-square rounded-xl overflow-hidden bg-black/10 dark:bg-white/10 mb-3">
+                        <CoverImage
+                          src={alb.coverUrl}
+                          alt={alb.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          fallback={
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Disc3 className="w-10 h-10 text-[var(--accent)] opacity-70" />
+                            </div>
+                          }
+                        />
+                      </div>
+                      <p className="text-sm font-semibold truncate">{alb.name}</p>
+                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90] truncate">
+                        {alb.artist} · {alb.count} tracks
+                      </p>
+                    </button>
+                  ))
+                )}
               </div>
             ) : activeTab === 'artists' ? (
               <div className="divide-y divide-black/5 dark:divide-white/5">
-                {artists.map((art) => (
-                  <button
-                    key={art.name}
-                    onClick={() =>
-                      setDrillFilter({ type: 'artist', value: art.name, label: art.name })
-                    }
-                    className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] rounded-xl text-left min-h-[56px]"
-                  >
-                    <CoverImage
-                      src={art.coverUrl}
-                      alt={art.name}
-                      className="w-11 h-11 rounded-full object-cover shrink-0 border border-black/10 dark:border-white/10"
-                      fallback={
-                        <div className="w-11 h-11 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
-                          <User className="w-5 h-5 text-[var(--accent)]" />
-                        </div>
+                {artists.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]">
+                    No artists found.
+                  </div>
+                ) : (
+                  artists.map((art) => (
+                    <button
+                      key={art.name}
+                      onClick={() =>
+                        setDrillFilter({ type: 'artist', value: art.name, label: art.name })
                       }
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{art.name}</p>
-                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
-                        {art.albums.size} album{art.albums.size === 1 ? '' : 's'} ·{' '}
-                        {art.trackCount} tracks
-                      </p>
-                    </div>
-                  </button>
-                ))}
+                      className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] rounded-xl text-left min-h-[56px]"
+                    >
+                      <CoverImage
+                        src={art.coverUrl}
+                        alt={art.name}
+                        className="w-11 h-11 rounded-full object-cover shrink-0 border border-black/10 dark:border-white/10"
+                        fallback={
+                          <div className="w-11 h-11 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
+                            <User className="w-5 h-5 text-[var(--accent)]" />
+                          </div>
+                        }
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">{art.name}</p>
+                        <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
+                          {art.albums.size} album{art.albums.size === 1 ? '' : 's'} ·{' '}
+                          {art.trackCount} tracks
+                        </p>
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             ) : activeTab === 'folders' ? (
               <div className="divide-y divide-black/5 dark:divide-white/5">
-                {folders.map((fld) => (
-                  <button
-                    key={fld.path}
-                    onClick={() =>
-                      setDrillFilter({ type: 'folder', value: fld.path, label: fld.name })
-                    }
-                    className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] rounded-xl text-left min-h-[56px]"
-                  >
-                    <div className="w-11 h-11 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center shrink-0">
-                      <Folder className="w-5 h-5 text-[var(--accent)]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{fld.name}</p>
-                    </div>
-                    <span className="text-xs font-mono-tabular text-[#6B675E] dark:text-[#9E9A90] shrink-0">
-                      {fld.count} {fld.count === 1 ? 'track' : 'tracks'}
-                    </span>
-                  </button>
-                ))}
+                {folders.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]">
+                    No folders found.
+                  </div>
+                ) : (
+                  folders.map((fld) => (
+                    <button
+                      key={fld.path}
+                      onClick={() =>
+                        setDrillFilter({ type: 'folder', value: fld.path, label: fld.name })
+                      }
+                      className="w-full px-3 py-3 flex items-center gap-3.5 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] rounded-xl text-left min-h-[56px]"
+                    >
+                      <div className="w-11 h-11 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center shrink-0">
+                        <Folder className="w-5 h-5 text-[var(--accent)]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">{fld.name}</p>
+                      </div>
+                      <span className="text-xs font-mono-tabular text-[#6B675E] dark:text-[#9E9A90] shrink-0">
+                        {fld.count} {fld.count === 1 ? 'track' : 'tracks'}
+                      </span>
+                    </button>
+                  ))
+                )}
               </div>
             ) : activeTab === 'videos' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1697,23 +1724,29 @@ export default function App() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {genres.map((g) => (
-                  <button
-                    key={g.name}
-                    onClick={() =>
-                      setDrillFilter({ type: 'genre', value: g.name, label: g.name })
-                    }
-                    className="p-4 rounded-2xl bg-black/[0.03] dark:bg-[#141417] border border-black/10 dark:border-white/10 hover:border-[var(--accent)]/60 text-left space-y-2 transition-colors"
-                  >
-                    <Tag className="w-5 h-5 text-[var(--accent)]" />
-                    <div>
-                      <p className="text-sm font-semibold truncate">{g.name}</p>
-                      <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
-                        {g.count} track{g.count === 1 ? '' : 's'}
-                      </p>
-                    </div>
-                  </button>
-                ))}
+                {genres.length === 0 ? (
+                  <div className="col-span-full py-10 text-center text-sm text-[#6B675E] dark:text-[#9E9A90]">
+                    No genres found.
+                  </div>
+                ) : (
+                  genres.map((g) => (
+                    <button
+                      key={g.name}
+                      onClick={() =>
+                        setDrillFilter({ type: 'genre', value: g.name, label: g.name })
+                      }
+                      className="p-4 rounded-2xl bg-black/[0.03] dark:bg-[#141417] border border-black/10 dark:border-white/10 hover:border-[var(--accent)]/60 text-left space-y-2 transition-colors"
+                    >
+                      <Tag className="w-5 h-5 text-[var(--accent)]" />
+                      <div>
+                        <p className="text-sm font-semibold truncate">{g.name}</p>
+                        <p className="text-xs text-[#6B675E] dark:text-[#9E9A90]">
+                          {g.count} track{g.count === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             )}
           </section>

@@ -87,17 +87,4 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 export const DEFAULT_TRACKS: Track[] = [];
 
-export const DEFAULT_PLAYLISTS: Playlist[] = [
-  {
-    id: 'pl-favorites',
-    name: 'Late Night Vinyl',
-    trackIds: ['trk-obsidian-1', 'trk-nocturne-1', 'trk-golden-1'],
-    createdAt: Date.now() - 86400000 * 3,
-  },
-  {
-    id: 'pl-focus',
-    name: 'Deep Studio Focus',
-    trackIds: ['trk-golden-1', 'trk-desert-1', 'trk-obsidian-2'],
-    createdAt: Date.now() - 86400000,
-  },
-];
+export const DEFAULT_PLAYLISTS: Playlist[] = [];

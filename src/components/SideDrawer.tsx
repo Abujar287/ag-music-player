@@ -407,10 +407,10 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold truncate">
-                      {currentTrack?.title ?? 'Obsidian Echoes'}
+                      {currentTrack?.title ?? 'No track selected'}
                     </p>
                     <p className="text-[11px] text-[#9E9A90] truncate">
-                      {currentTrack?.artist ?? 'Kaelen Vance'}
+                      {currentTrack?.artist ?? 'AG Music Player'}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -458,10 +458,10 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                     />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate">
-                        {currentTrack?.title ?? 'Obsidian Echoes'}
+                        {currentTrack?.title ?? 'No track selected'}
                       </p>
                       <p className="text-xs text-[#9E9A90] truncate">
-                        {currentTrack?.artist ?? 'Kaelen Vance'} · {currentTrack?.album ?? 'Obsidian Echoes'}
+                        {currentTrack ? `${currentTrack.artist} · ${currentTrack.album}` : 'AG Music Player'}
                       </p>
                     </div>
                   </div>
