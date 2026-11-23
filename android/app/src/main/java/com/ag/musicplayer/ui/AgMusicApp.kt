@@ -5,6 +5,9 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,21 +46,39 @@ fun AgMusicApp(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val updateState by updateManager.state.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var activeTab by remember { mutableStateOf("tracks") }
     var currentTrack by remember { mutableStateOf<Track?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var showNowPlaying by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
+    var drawerSection by remember { mutableStateOf("menu") }
 
-    val tabs = listOf("Tracks", "Albums", "Artists", "Folders", "Genres")
+    val audioTracks = remember(tracks, searchQuery) {
+        tracks.filter { it.mediaType != "video" && (searchQuery.isBlank() || it.title.contains(searchQuery, true) || it.artist.contains(searchQuery, true)) }
+    }
+    val videos = remember(tracks, searchQuery) {
+        tracks.filter { it.mediaType == "video" && (searchQuery.isBlank() || it.title.contains(searchQuery, true)) }
+    }
 
-    val filteredTracks = remember(tracks, searchQuery) {
-        if (searchQuery.isBlank()) tracks
-        else tracks.filter {
-            it.title.contains(searchQuery, ignoreCase = true) ||
-                it.artist.contains(searchQuery, ignoreCase = true) ||
-                it.album.contains(searchQuery, ignoreCase = true)
+    val albums = remember(tracks) {
+        tracks.groupBy { it.album }.map { (album, list) ->
+            Triple(album, list.firstOrNull()?.artist ?: "Unknown", list.size)
+        }
+    }
+    val artists = remember(tracks) {
+        tracks.groupBy { it.artist }.map { (artist, list) ->
+            Pair(artist, list.size)
+        }
+    }
+    val genres = remember(tracks) {
+        tracks.groupBy { it.genre }.map { (genre, list) ->
+            Pair(genre, list.size)
+        }
+    }
+    val folders = remember(tracks) {
+        tracks.groupBy { it.folder }.map { (folder, list) ->
+            Pair(folder, list.size)
         }
     }
 
@@ -69,28 +90,91 @@ fun AgMusicApp(
                 drawerContentColor = Color(0xFFF5F3EE)
             ) {
                 Column(modifier = Modifier.fillMaxHeight().padding(16.dp)) {
-                    Text(
-                        text = "AG Music Player",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD4AF37)
-                    )
-                    Text(
-                        text = "Offline-First Audio Studio",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF9E9A90)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "AG Music Player",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFD4AF37)
+                            )
+                            Text(
+                                text = "Music Player · V-${BuildConfig.VERSION_NAME}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF9E9A90)
+                            )
+                        }
+                        IconButton(onClick = { scope.launch { drawerState.close() } }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFFF5F3EE))
+                        }
+                    }
+
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = Color(0xFF27272C))
-                    NavigationDrawerItem(
-                        label = { Text("Rescan Music Library") },
-                        selected = false,
-                        onClick = {
-                            onRescan(AppSettings())
-                            scope.launch { drawerState.close() }
-                        },
-                        icon = { Icon(Icons.Default.Refresh, contentDescription = null) }
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
+
+                    if (drawerSection != "menu") {
+                        TextButton(
+                            onClick = { drawerSection = "menu" },
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color(0xFFD4AF37))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Back to Menu", color = Color(0xFFD4AF37))
+                        }
+                    }
+
+                    if (drawerSection == "menu") {
+                        Column(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            NavigationDrawerItem(
+                                label = { Text("Theme Settings") },
+                                selected = false,
+                                onClick = { drawerSection = "theme" },
+                                icon = { Icon(Icons.Default.Palette, contentDescription = null, tint = Color(0xFFD4AF37)) }
+                            )
+                            NavigationDrawerItem(
+                                label = { Text("5-Band Equalizer") },
+                                selected = false,
+                                onClick = { drawerSection = "equalizer" },
+                                icon = { Icon(Icons.Default.Tune, contentDescription = null, tint = Color(0xFFD4AF37)) }
+                            )
+                            NavigationDrawerItem(
+                                label = { Text("Home Screen Widgets") },
+                                selected = false,
+                                onClick = { drawerSection = "widget" },
+                                icon = { Icon(Icons.Default.GridOn, contentDescription = null, tint = Color(0xFFD4AF37)) }
+                            )
+                            NavigationDrawerItem(
+                                label = { Text("Audio Settings") },
+                                selected = false,
+                                onClick = { drawerSection = "settings" },
+                                icon = { Icon(Icons.Default.Settings, contentDescription = null, tint = Color(0xFFD4AF37)) }
+                            )
+                        }
+                    } else if (drawerSection == "theme") {
+                        Column(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Appearance", fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
+                            Text("Dark Obsidian Theme Active", color = Color(0xFF9E9A90))
+                        }
+                    } else if (drawerSection == "equalizer") {
+                        Column(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Equalizer Presets", fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
+                            Text("Normal, Bass Boost, Rock, Pop, Classical", color = Color(0xFF9E9A90))
+                        }
+                    } else if (drawerSection == "widget") {
+                        Column(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Widgets Preview", fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
+                            Text("4x1 Compact and 4x2 Card Player Widgets available on Android Launcher.", color = Color(0xFF9E9A90), style = MaterialTheme.typography.bodySmall)
+                        }
+                    } else {
+                        Column(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Audio Settings", fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
+                            Text("Gapless playback, Crossfade, Auto-Sync enabled.", color = Color(0xFF9E9A90), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+
                     HorizontalDivider(color = Color(0xFF27272C))
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
@@ -119,7 +203,9 @@ fun AgMusicApp(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
-                            Text("AG Music Player", fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("AG Music Player", fontWeight = FontWeight.Bold)
+                            }
                         }
                     },
                     navigationIcon = {
@@ -178,50 +264,119 @@ fun AgMusicApp(
             },
             containerColor = Color(0xFF0B0B0D)
         ) { padding ->
-            Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-                ScrollableTabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color(0xFF0B0B0D),
-                    contentColor = Color(0xFFD4AF37)
+            Column(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // 2 Rows x 3 Columns Category Grid
+                val categories = listOf(
+                    Triple("tracks", "Tracks", audioTracks.size),
+                    Triple("albums", "Albums", albums.size),
+                    Triple("artists", "Artists", artists.size),
+                    Triple("genres", "Genres", genres.size),
+                    Triple("videos", "Videos", videos.size),
+                    Triple("folders", "Folders", folders.size)
+                )
+
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.height(200.dp)
                 ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = { Text(title) }
-                        )
+                    items(categories) { cat ->
+                        val selected = activeTab == cat.first
+                        Surface(
+                            onClick = { activeTab = cat.first },
+                            color = if (selected) Color(0xFF2A2410) else Color(0xFF141417),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, if (selected) Color(0xFFD4AF37) else Color(0xFF27272C)),
+                            modifier = Modifier.height(90.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp).fillMaxSize(),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(cat.third.toString(), style = MaterialTheme.typography.bodySmall, color = Color(0xFFD4AF37), fontWeight = FontWeight.Bold)
+                                Text(cat.second, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFFF5F3EE))
+                            }
+                        }
                     }
                 }
 
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(filteredTracks, key = { it.id }) { track ->
-                        ListItem(
-                            headlineContent = { Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            supportingContent = { Text("${track.artist} · ${track.album}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            trailingContent = {
-                                IconButton(onClick = { mediaScanner.shareTrack(track) }) {
-                                    Icon(Icons.Default.MoreVert, contentDescription = "Options")
-                                }
-                            },
-                            modifier = Modifier.clickable {
-                                currentTrack = track
-                                isPlaying = true
-                                val item = MediaItem.Builder()
-                                    .setUri(track.contentUri)
-                                    .setMediaMetadata(
-                                        MediaMetadata.Builder()
-                                            .setTitle(track.title)
-                                            .setArtist(track.artist)
-                                            .setAlbumTitle(track.album)
-                                            .build()
-                                    )
-                                    .build()
-                                mediaController?.setMediaItem(item)
-                                mediaController?.prepare()
-                                mediaController?.play()
-                            },
-                            colors = ListItemDefaults.colors(containerColor = Color(0xFF0B0B0D))
-                        )
+                HorizontalDivider(color = Color(0xFF27272C))
+
+                // List content based on activeTab
+                LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (activeTab == "tracks" || activeTab == "folders") {
+                        val list = if (activeTab == "tracks") audioTracks else tracks
+                        items(list, key = { it.id }) { track ->
+                            ListItem(
+                                headlineContent = { Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                supportingContent = { Text("${track.artist} · ${track.album}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                trailingContent = {
+                                    IconButton(onClick = { mediaScanner.shareTrack(track) }) {
+                                        Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = Color(0xFF9E9A90))
+                                    }
+                                },
+                                modifier = Modifier.clickable {
+                                    currentTrack = track
+                                    isPlaying = true
+                                    val item = MediaItem.Builder()
+                                        .setUri(track.contentUri)
+                                        .setMediaMetadata(
+                                            MediaMetadata.Builder()
+                                                .setTitle(track.title)
+                                                .setArtist(track.artist)
+                                                .setAlbumTitle(track.album)
+                                                .build()
+                                        )
+                                        .build()
+                                    mediaController?.setMediaItem(item)
+                                    mediaController?.prepare()
+                                    mediaController?.play()
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                            )
+                        }
+                    } else if (activeTab == "albums") {
+                        items(albums) { alb ->
+                            ListItem(
+                                headlineContent = { Text(alb.first, fontWeight = FontWeight.Bold) },
+                                supportingContent = { Text("Artist: ${alb.second} · ${alb.third} tracks") },
+                                colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                            )
+                        }
+                    } else if (activeTab == "artists") {
+                        items(artists) { art ->
+                            ListItem(
+                                headlineContent = { Text(art.first, fontWeight = FontWeight.Bold) },
+                                supportingContent = { Text("${art.second} tracks") },
+                                colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                            )
+                        }
+                    } else if (activeTab == "genres") {
+                        items(genres) { gen ->
+                            ListItem(
+                                headlineContent = { Text(gen.first, fontWeight = FontWeight.Bold) },
+                                supportingContent = { Text("${gen.second} tracks") },
+                                colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                            )
+                        }
+                    } else if (activeTab == "videos") {
+                        items(videos, key = { it.id }) { vid ->
+                            ListItem(
+                                headlineContent = { Text(vid.title, maxLines = 1) },
+                                supportingContent = { Text("Music Video · ${vid.artist}") },
+                                trailingContent = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFFD4AF37)) },
+                                modifier = Modifier.clickable {
+                                    currentTrack = vid
+                                    isPlaying = true
+                                    val item = MediaItem.Builder().setUri(vid.contentUri).build()
+                                    mediaController?.setMediaItem(item)
+                                    mediaController?.prepare()
+                                    mediaController?.play()
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color(0xFF141417))
+                            )
+                        }
                     }
                 }
             }
@@ -241,7 +396,8 @@ fun AgMusicApp(
                     text = currentTrack!!.title,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.basicMarquee()
+                    modifier = Modifier.basicMarquee(),
+                    color = Color(0xFFF5F3EE)
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(currentTrack!!.artist, color = Color(0xFF9E9A90))
