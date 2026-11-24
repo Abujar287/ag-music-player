@@ -20,6 +20,7 @@ import {
   UpdateFlowState,
 } from '../types/music';
 import { formatBytes, formatTime } from '../utils/formatters';
+import { LOGO_IMAGE_URL } from '../data/defaultLibrary';
 
 /* 1. Create / Rename Playlist Modal */
 interface PlaylistModalProps {
@@ -92,6 +93,75 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
     </div>
   );
 };
+
+/* 8. About Modal */
+export interface AboutModalProps {
+  open: boolean;
+  version: string;
+  onClose: () => void;
+  onCheckUpdate: () => void;
+}
+
+export const AboutModal: React.FC<AboutModalProps> = ({
+  open,
+  version,
+  onClose,
+  onCheckUpdate,
+}) => {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md rounded-3xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-5 text-center">
+        <div className="flex justify-end -mr-2 -mt-2">
+          <button onClick={onClose} className="p-2 rounded-xl text-white hover:bg-white/10">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex flex-col items-center space-y-3">
+          <img
+            src={LOGO_IMAGE_URL}
+            alt="AG Music Player emblem"
+            className="w-20 h-20 rounded-full object-cover border-2 border-[var(--accent)] shadow-lg"
+            referrerPolicy="no-referrer"
+          />
+          <div>
+            <h3 className="text-xl font-bold text-white">AG Music Player</h3>
+            <p className="text-xs text-white/60 font-mono-tabular mt-0.5">{version}</p>
+          </div>
+        </div>
+
+        <p className="text-xs text-white/70 leading-relaxed px-2">
+          Modern, high-contrast, offline-first Android music player with 5-band equalizer, playlist manager, GitHub auto-updater, and automated APK CI/CD pipeline.
+        </p>
+
+        <div className="pt-2 flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onCheckUpdate();
+            }}
+            className="w-full min-h-[46px] rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] text-sm font-bold flex items-center justify-center gap-2 shadow-md hover:bg-[var(--accent-hover)] transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Check for Updates</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full min-h-[42px] rounded-xl bg-white/10 text-white/90 text-xs font-semibold hover:bg-white/15 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 /* 2. Add Track to Playlist Modal */
 interface AddToPlaylistModalProps {

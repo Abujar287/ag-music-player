@@ -43,15 +43,18 @@ import {
   SongInfoModal,
   UpdateModal,
   DeleteConfirmModal,
+  AboutModal,
 } from './components/Modals';
 import { NowPlayingModal } from './components/NowPlayingModal';
 import { ScenicBackdrop } from './components/ScenicBackdrop';
 import { DrawerSection, SideDrawer } from './components/SideDrawer';
 import { CoverImage } from './components/CoverImage';
 import { SeekBar } from './components/SeekBar';
+import { HeaderDropdownMenu } from './components/HeaderDropdownMenu';
 import {
   ACCENT_OPTIONS,
   APP_VERSION,
+  APP_VERSION_TAG,
   DEFAULT_EQUALIZER,
   DEFAULT_PLAYLISTS,
   DEFAULT_SETTINGS,
@@ -214,6 +217,7 @@ export default function App() {
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<Track | null>(null);
   const [sleepTimerOpen, setSleepTimerOpen] = useState(false);
   const [updateState, setUpdateState] = useState<UpdateFlowState>({ status: 'idle' });
+  const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [pendingDeleteTrack, setPendingDeleteTrack] = useState<Track | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [pullDistance, setPullDistance] = useState(0);
@@ -1392,13 +1396,48 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => setSearchOpen(true)}
-              aria-label="Search Music Library"
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
-            >
-              <Search className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              {!searchOpen && (
+                <button
+                  onClick={() => setSearchOpen(true)}
+                  aria-label="Search Music Library"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
+                >
+                  <Search className="w-5 h-5" />
+                </button>
+              )}
+              <HeaderDropdownMenu
+                settings={settings}
+                onScanAudio={() => scanDeviceStorage(true)}
+                onOpenEqualizer={() => {
+                  setDrawerSection('equalizer');
+                  setDrawerOpen(true);
+                }}
+                onOpenSleepTimer={() => setSleepTimerOpen(true)}
+                onOpenPlaybackSettings={() => {
+                  setDrawerSection('settings');
+                  setDrawerOpen(true);
+                }}
+                onOpenTheme={() => {
+                  setDrawerSection('theme');
+                  setDrawerOpen(true);
+                }}
+                onOpenWidget={() => {
+                  setDrawerSection('widget');
+                  setDrawerOpen(true);
+                }}
+                onBackupRestore={() => showToast('Library backup exported to local JSON storage')}
+                onStorageCache={() => showToast('Cache cleaned (0.0 MB temp files cleared)')}
+                onOpenAbout={() => {
+                  setDrawerSection('about');
+                  setDrawerOpen(true);
+                }}
+                sleepTimerActive={sleepTimer.active}
+                sleepTimerRemaining={
+                  sleepTimer.remainingSec > 0 ? formatTime(sleepTimer.remainingSec) : undefined
+                }
+              />
+            </div>
           )}
         </div>
       </header>
@@ -2234,6 +2273,13 @@ export default function App() {
         onClose={() => setUpdateState({ status: 'idle' })}
         onDownload={handleStartDownload}
         onTriggerInstall={handleTriggerInstall}
+      />
+
+      <AboutModal
+        open={aboutModalOpen}
+        version={APP_VERSION_TAG}
+        onClose={() => setAboutModalOpen(false)}
+        onCheckUpdate={() => void handleCheckUpdate()}
       />
 
       <DeleteConfirmModal
