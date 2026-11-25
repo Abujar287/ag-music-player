@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import { Check } from 'lucide-react';
 import { CLASSIC_THEMES } from '../data/defaultLibrary';
 
@@ -43,13 +44,14 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           const isLightSwatch = swatch.id === 'classic_cool_mist';
 
           return (
-            <button
+            <motion.button
               key={swatch.id}
               type="button"
               role="radio"
               aria-checked={isActive}
               aria-label={swatch.label}
               title={swatch.label}
+              whileTap={{ scale: 0.9 }}
               onClick={() => onSelectTheme(swatch.id)}
               style={swatchStyle}
               className={`group relative aspect-square w-full rounded-xl transition-all duration-150 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${
@@ -61,7 +63,10 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
               }`}
             >
               {isActive && (
-                <span
+                <motion.span
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
                   className={`w-5 h-5 rounded-full flex items-center justify-center shadow-md ${
                     isLightSwatch
                       ? 'bg-[#111622] text-white'
@@ -69,9 +74,9 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = ({
                   }`}
                 >
                   <Check className="w-3 h-3 stroke-[3]" />
-                </span>
+                </motion.span>
               )}
-            </button>
+            </motion.button>
           );
         })}
       </div>

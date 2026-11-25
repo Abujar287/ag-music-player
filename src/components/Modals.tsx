@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   X,
   Moon,
@@ -41,12 +42,25 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
   const [name, setName] = useState(initialName);
   useEffect(() => setName(initialName), [initialName, open]);
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-4">
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 12 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 w-full max-w-md rounded-2xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-4"
+          >
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-white">
             {mode === 'create' ? 'Create New Playlist' : 'Rename Playlist'}
@@ -89,8 +103,10 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -108,12 +124,25 @@ export const AboutModal: React.FC<AboutModalProps> = ({
   onClose,
   onCheckUpdate,
 }) => {
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-3xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-5 text-center">
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 12 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 w-full max-w-md rounded-3xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-5 text-center"
+          >
         <div className="flex justify-end -mr-2 -mt-2">
           <button onClick={onClose} className="p-2 rounded-xl text-white hover:bg-white/10">
             <X className="w-4 h-4" />
@@ -157,8 +186,10 @@ export const AboutModal: React.FC<AboutModalProps> = ({
             Close
           </button>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -177,11 +208,25 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
   onClose,
   onSelectPlaylist,
 }) => {
-  if (!track) return null;
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-4">
+    <AnimatePresence>
+      {track && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 12 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 w-full max-w-md rounded-2xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-4"
+          >
         <div className="flex items-center justify-between">
           <div className="min-w-0 pr-2">
             <h3 className="text-base font-bold text-white">Add to Playlist</h3>
@@ -222,8 +267,10 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
             })
           )}
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -251,8 +298,6 @@ export const EditTagModal: React.FC<EditTagModalProps> = ({ track, onClose, onSa
     }
   }, [track]);
 
-  if (!track) return null;
-
   const handleCoverPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -266,9 +311,24 @@ export const EditTagModal: React.FC<EditTagModalProps> = ({ track, onClose, onSa
   };
 
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-4">
+    <AnimatePresence>
+      {track && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 12 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 w-full max-w-md rounded-2xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-4"
+          >
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-white">Edit Tag / Audio Info</h3>
           <button onClick={onClose} className="p-2 rounded-lg text-white hover:bg-white/10">
@@ -356,8 +416,10 @@ export const EditTagModal: React.FC<EditTagModalProps> = ({ track, onClose, onSa
             </button>
           </div>
         </form>
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -378,12 +440,25 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({
   onClearTimer,
 }) => {
   const [customMin, setCustomMin] = useState(20);
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-4">
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 12 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 w-full max-w-md rounded-2xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-4"
+          >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Moon className="w-5 h-5 text-[var(--accent)]" />
@@ -457,8 +532,10 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({
             Turn Off Active Timer
           </button>
         )}
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -476,15 +553,25 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
   onDownload,
   onTriggerInstall,
 }) => {
-  if (state.status === 'idle') return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={state.status === 'downloading' ? undefined : onClose}
-      />
-      <div className="relative z-10 w-full max-w-sm rounded-3xl bg-[#071836]/95 backdrop-blur-xl text-white border border-white/15 p-6 shadow-2xl">
+    <AnimatePresence>
+      {state.status !== 'idle' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={state.status === 'downloading' ? undefined : onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 12 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 w-full max-w-sm rounded-3xl bg-[#071836]/95 backdrop-blur-xl text-white border border-white/15 p-6 shadow-2xl"
+          >
         {state.status === 'checking' && (
           <div className="py-4 flex flex-col items-center text-center space-y-3">
             <RefreshCw className="w-7 h-7 text-[var(--accent)] animate-spin" />
@@ -651,8 +738,10 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
             </div>
           </div>
         )}
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -668,12 +757,25 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   onCancel,
   onConfirmDelete,
 }) => {
-  if (!track) return null;
-
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative z-10 w-full max-w-sm rounded-3xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-4">
+    <AnimatePresence>
+      {track && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={onCancel}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 12 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 w-full max-w-sm rounded-3xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-6 shadow-2xl space-y-4"
+          >
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-2xl bg-rose-500/15 flex items-center justify-center shrink-0">
             <Trash2 className="w-5 h-5 text-rose-400" />
@@ -706,8 +808,10 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
             Delete
           </button>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -723,12 +827,25 @@ export const SongInfoModal: React.FC<SongInfoModalProps> = ({
   onClose,
   onEditTags,
 }) => {
-  if (!track) return null;
-
   return (
-    <div className="fixed inset-0 z-[65] flex items-end sm:items-center justify-center p-3 sm:p-4">
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md max-h-[85vh] overflow-y-auto rounded-3xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-5 shadow-2xl space-y-4">
+    <AnimatePresence>
+      {track && (
+        <div className="fixed inset-0 z-[65] flex items-end sm:items-center justify-center p-3 sm:p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 w-full max-w-md max-h-[85vh] overflow-y-auto rounded-3xl bg-[#0B0D16]/95 backdrop-blur-2xl text-white border border-white/10 p-5 shadow-2xl space-y-4"
+          >
         <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/10">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center shrink-0">
@@ -810,7 +927,9 @@ export const SongInfoModal: React.FC<SongInfoModalProps> = ({
             <span>Edit Tags</span>
           </button>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   X,
   RefreshCw,
@@ -275,8 +276,6 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
     return APP_VERSION_TAG;
   }, []);
 
-  if (!open) return null;
-
   const handleClose = () => {
     onClose();
   };
@@ -336,17 +335,29 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
         : 'bg-white/[0.08] backdrop-blur-2xl border border-white/15';
 
   return (
-    <div className="fixed inset-0 z-[60] flex">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
-        onClick={handleClose}
-        aria-hidden="true"
-      />
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-[60] flex">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={handleClose}
+            aria-hidden="true"
+          />
 
-      {/* Drawer Panel */}
-      <aside className="relative z-10 flex h-full w-full max-w-[380px] flex-col bg-[#080A12] text-white border-r border-white/10 shadow-2xl overflow-hidden">
-        <ScenicBackdrop className="absolute inset-0 z-0" />
+          {/* Drawer Panel */}
+          <motion.aside
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 flex h-full w-full max-w-[380px] flex-col bg-[#080A12] text-white border-r border-white/10 shadow-2xl overflow-hidden"
+          >
+            <ScenicBackdrop className="absolute inset-0 z-0" />
 
         {/* Brand Header */}
         <div className="relative z-10 flex items-center justify-between px-5 py-4 border-b border-white/10 bg-black/20 backdrop-blur-md">
@@ -886,7 +897,9 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
           )}
 
         </div>
-      </aside>
-    </div>
+          </motion.aside>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };

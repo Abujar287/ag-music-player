@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   ChevronDown,
   ListMusic,
@@ -128,58 +129,70 @@ export const NowPlayingModal: React.FC<NowPlayingModalProps> = ({
     }
   }, [open]);
 
-  if (!open || !track) return null;
-
-  const displayedPosSec = scrubPreviewSec !== null ? scrubPreviewSec : positionSec;
+  const displayedPosSec = track ? (scrubPreviewSec !== null ? scrubPreviewSec : positionSec) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#061329] text-white overflow-hidden">
-      <ScenicBackdrop className="absolute inset-0 z-0" />
-
-      {/* Top Header */}
-      <header className="relative z-10 flex items-center justify-between gap-3 px-4 py-3 border-b border-white/10 bg-black/10 backdrop-blur-md shrink-0">
-        <button
-          onClick={onClose}
-          aria-label="Minimize Now Playing"
-          className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
+    <AnimatePresence>
+      {open && track && (
+        <motion.div
+          initial={{ y: '100%', opacity: 0.92 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: '100%', opacity: 0.92 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          className="fixed inset-0 z-50 flex flex-col bg-[#061329] text-white overflow-hidden"
         >
-          <ChevronDown className="w-6 h-6" />
-        </button>
+          <ScenicBackdrop className="absolute inset-0 z-0" />
 
-        {/* Clean Static Track Title */}
-        <div className="flex-1 min-w-0 text-center px-2">
-          <p className="text-sm font-semibold text-white truncate">{track.title}</p>
-          <p className="text-xs text-white/65 truncate">
-            {track.artist} · {track.album}
-          </p>
-        </div>
+          {/* Top Header */}
+          <header className="relative z-10 flex items-center justify-between gap-3 px-4 py-3 border-b border-white/10 bg-black/10 backdrop-blur-md shrink-0">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={onClose}
+              aria-label="Minimize Now Playing"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
+            >
+              <ChevronDown className="w-6 h-6" />
+            </motion.button>
 
-        <button
-          onClick={() => setShowQueueSheet(true)}
-          aria-label="Open Queue and Folder Location"
-          className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
-        >
-          <ListMusic className="w-5 h-5" />
-        </button>
-      </header>
+            {/* Clean Static Track Title */}
+            <div className="flex-1 min-w-0 text-center px-2">
+              <p className="text-sm font-semibold text-white truncate">{track.title}</p>
+              <p className="text-xs text-white/65 truncate">
+                {track.artist} · {track.album}
+              </p>
+            </div>
 
-      {/* Main Content */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-evenly px-6 py-4 max-w-xl mx-auto w-full overflow-y-auto">
-        {/* Vinyl Artwork Stage */}
-        <div className="relative flex items-center justify-center my-2 w-full">
-          <div className="w-56 h-56 sm:w-72 sm:h-72 rounded-full p-2 border-2 border-[var(--accent)]/45 shadow-2xl bg-[#071836]/80 flex items-center justify-center">
-            <CoverImage
-              src={track.coverUrl}
-              alt={track.album}
-              className={`w-full h-full rounded-full object-cover ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}
-              fallback={
-                <div className={`w-full h-full rounded-full bg-[#0A2044] flex flex-col items-center justify-center ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}>
-                  <Disc3 className="w-24 h-24 text-[var(--accent)] opacity-85" />
-                </div>
-              }
-            />
-          </div>
-        </div>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setShowQueueSheet(true)}
+              aria-label="Open Queue and Folder Location"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
+            >
+              <ListMusic className="w-5 h-5" />
+            </motion.button>
+          </header>
+
+          {/* Main Content */}
+          <div className="relative z-10 flex-1 flex flex-col items-center justify-evenly px-6 py-4 max-w-xl mx-auto w-full overflow-y-auto">
+            {/* Vinyl Artwork Stage */}
+            <div className="relative flex items-center justify-center my-2 w-full">
+              <motion.div
+                animate={{ scale: isPlaying ? 1 : 0.95 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                className="w-56 h-56 sm:w-72 sm:h-72 rounded-full p-2 border-2 border-[var(--accent)]/45 shadow-2xl bg-[#071836]/80 flex items-center justify-center"
+              >
+                <CoverImage
+                  src={track.coverUrl}
+                  alt={track.album}
+                  className={`w-full h-full rounded-full object-cover ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}
+                  fallback={
+                    <div className={`w-full h-full rounded-full bg-[#0A2044] flex flex-col items-center justify-center ${isPlaying ? 'animate-vinyl' : 'animate-vinyl-paused'}`}>
+                      <Disc3 className="w-24 h-24 text-[var(--accent)] opacity-85" />
+                    </div>
+                  }
+                />
+              </motion.div>
+            </div>
 
         {/* Track Title & Folder Metadata */}
         <div className="w-full text-center space-y-1">
@@ -299,13 +312,24 @@ export const NowPlayingModal: React.FC<NowPlayingModalProps> = ({
       </div>
 
       {/* Queue & Folder Location Bottom Sheet */}
-      {showQueueSheet && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowQueueSheet(false)}
-          />
-          <div className="relative z-10 w-full max-w-2xl max-h-[78vh] flex flex-col rounded-t-3xl bg-[#071836]/95 backdrop-blur-xl text-white border-t border-white/15 shadow-2xl">
+      <AnimatePresence>
+        {showQueueSheet && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowQueueSheet(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+              className="relative z-10 w-full max-w-2xl max-h-[78vh] flex flex-col rounded-t-3xl bg-[#071836]/95 backdrop-blur-xl text-white border-t border-white/15 shadow-2xl"
+            >
             <div className="w-10 h-1.5 bg-white/25 rounded-full mx-auto my-3" />
             <div className="flex items-center justify-between px-5 pb-3 border-b border-white/15">
               <div className="min-w-0">
@@ -379,18 +403,30 @@ export const NowPlayingModal: React.FC<NowPlayingModalProps> = ({
                 );
               })}
             </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* Three-Dot Overflow Menu (Frosted-Glass Action Bottom Sheet) */}
-      {showMoreMenu && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
-          <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => setShowMoreMenu(false)}
-          />
-          <div className="relative z-10 w-full max-w-md max-h-[86vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-[#0A0B14]/92 backdrop-blur-2xl text-white border border-white/10 shadow-2xl p-4 pb-6 space-y-3">
+      <AnimatePresence>
+        {showMoreMenu && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => setShowMoreMenu(false)}
+            />
+            <motion.div
+              initial={{ y: 36, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 36, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="relative z-10 w-full max-w-md max-h-[86vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-[#0A0B14]/92 backdrop-blur-2xl text-white border border-white/10 shadow-2xl p-4 pb-6 space-y-3"
+            >
             <div className="w-10 h-1 rounded-full bg-white/20 mx-auto sm:hidden" />
 
             <div className="flex items-center gap-3 pb-3 border-b border-white/10">
@@ -514,9 +550,12 @@ export const NowPlayingModal: React.FC<NowPlayingModalProps> = ({
                 <span>Delete from Device</span>
               </button>
             </div>
+            </motion.div>
           </div>
-        </div>
+        )}
+      </AnimatePresence>
+        </motion.div>
       )}
-    </div>
+    </AnimatePresence>
   );
 };

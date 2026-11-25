@@ -24,7 +24,8 @@ class MediaScanner(private val context: Context) {
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.SIZE,
-            MediaStore.Audio.Media.DISPLAY_NAME
+            MediaStore.Audio.Media.DISPLAY_NAME,
+            MediaStore.Audio.Media.DATE_ADDED
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             projectionList.add(MediaStore.Audio.Media.RELATIVE_PATH)
@@ -62,6 +63,7 @@ class MediaScanner(private val context: Context) {
             val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
             val displayNameCol = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME)
+            val dateAddedCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATE_ADDED)
             val relPathCol = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
             } else -1
@@ -122,6 +124,10 @@ class MediaScanner(private val context: Context) {
                     "Local Audio"
                 }
 
+                val dateAddedMs = if (dateAddedCol >= 0) {
+                    cursor.getLong(dateAddedCol).coerceAtLeast(0L) * 1000L
+                } else 0L
+
                 tracks.add(
                     Track(
                         id = id,
@@ -134,7 +140,8 @@ class MediaScanner(private val context: Context) {
                         contentUri = contentUri,
                         albumArtUri = albumArtUri,
                         durationMs = durationMs,
-                        sizeBytes = sizeBytes
+                        sizeBytes = sizeBytes,
+                        dateAddedMs = dateAddedMs
                     )
                 )
             }

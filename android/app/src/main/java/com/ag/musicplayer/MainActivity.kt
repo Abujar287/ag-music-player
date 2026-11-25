@@ -419,6 +419,7 @@ class MainActivity : ComponentActivity() {
                 put("coverUrl", webCoverUrl)
                 put("durationSec", track.durationMs / 1000)
                 put("sizeKb", track.sizeBytes / 1024)
+                put("addedAt", track.dateAddedMs)
                 put("mediaType", "audio")
                 put("isLocalImport", true)
             }

@@ -290,4 +290,33 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 export const DEFAULT_TRACKS: Track[] = [];
 
-export const DEFAULT_PLAYLISTS: Playlist[] = [];
+export const DEFAULT_PLAYLISTS: Playlist[] = [
+  {
+    id: 'pl-recent-played',
+    name: 'Recent Played',
+    trackIds: [],
+    createdAt: 1,
+    systemType: 'recent_played',
+  },
+  {
+    id: 'pl-favourite',
+    name: 'Favourite',
+    trackIds: [],
+    createdAt: 2,
+    systemType: 'favourite',
+  },
+  {
+    id: 'pl-most-played',
+    name: 'Most Played',
+    trackIds: [],
+    createdAt: 3,
+    systemType: 'most_played',
+  },
+  {
+    id: 'pl-recent-added',
+    name: 'Recent Added',
+    trackIds: [],
+    createdAt: 4,
+    systemType: 'recent_added',
+  },
+];

@@ -16,6 +16,7 @@ data class Track(
     val albumArtUri: Uri?,
     val durationMs: Long,
     val sizeBytes: Long,
+    val dateAddedMs: Long = 0L,
     val isFavorite: Boolean = false
 )
 

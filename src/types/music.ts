@@ -47,14 +47,20 @@ export interface Track {
   nativeArtUri?: string;
   isLocalImport?: boolean;
   isFavorite: boolean;
+  playCount?: number;
+  lastPlayedAt?: number;
+  addedAt?: number;
   synthProfile?: SynthProfile;
 }
+
+export type SystemPlaylistType = 'recent_played' | 'favourite' | 'most_played' | 'recent_added';
 
 export interface Playlist {
   id: string;
   name: string;
   trackIds: string[];
   createdAt: number;
+  systemType?: SystemPlaylistType;
 }
 
 export interface EqualizerState {
