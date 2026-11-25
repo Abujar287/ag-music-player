@@ -1,6 +1,7 @@
 import {
   AccentOption,
   AppSettings,
+  ClassicThemeOption,
   EqualizerState,
   EqPresetId,
   Playlist,
@@ -91,6 +92,114 @@ export const SCENIC_THEMES: ScenicThemeOption[] = [
     previewGradient: 'linear-gradient(135deg, #4C1D95 0%, #1E1B4B 55%, #090D1E 100%)',
     cardBgHex: '#151436',
   },
+];
+
+function hexToRgbTuple(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '');
+  const num = parseInt(clean, 16);
+  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+}
+
+function makeSolidClassicTheme(
+  id: string,
+  label: string,
+  hex: string,
+  fgHex: string,
+  backdropHex: string
+): ClassicThemeOption {
+  const [ar, ag, ab] = hexToRgbTuple(hex);
+  const [br, bg, bb] = hexToRgbTuple(backdropHex);
+  return {
+    id,
+    label,
+    subtitle: 'Classic solid theme',
+    topHex: hex,
+    isSplit: false,
+    fromRgba: `rgba(${br}, ${bg}, ${bb}, 0.84)`,
+    viaRgba: `rgba(${br}, ${bg}, ${bb}, 0.88)`,
+    toRgba: `rgba(${Math.max(0, br - 10)}, ${Math.max(0, bg - 10)}, ${Math.max(0, bb - 10)}, 0.96)`,
+    surfaceRgba: `rgba(${Math.min(255, br + 16)}, ${Math.min(255, bg + 16)}, ${Math.min(255, bb + 16)}, 0.62)`,
+    accentHex: hex,
+    accentHoverHex: hex,
+    accentFgHex: fgHex,
+    accentSoftRgba: `rgba(${ar}, ${ag}, ${ab}, 0.2)`,
+    previewGradient: hex,
+    cardBgHex: backdropHex,
+  };
+}
+
+function makeSplitClassicTheme(
+  id: string,
+  label: string,
+  topHex: string,
+  bottomHex: string,
+  fgHex: string
+): ClassicThemeOption {
+  const [ar, ag, ab] = hexToRgbTuple(topHex);
+  const [br, bg, bb] = hexToRgbTuple(bottomHex);
+  return {
+    id,
+    label,
+    subtitle: 'Classic split theme',
+    topHex,
+    bottomHex,
+    isSplit: true,
+    fromRgba: `rgba(${br}, ${bg}, ${bb}, 0.88)`,
+    viaRgba: `rgba(${br}, ${bg}, ${bb}, 0.92)`,
+    toRgba: `rgba(${Math.max(0, br - 8)}, ${Math.max(0, bg - 8)}, ${Math.max(0, bb - 8)}, 0.98)`,
+    surfaceRgba: `rgba(${Math.min(255, br + 14)}, ${Math.min(255, bg + 14)}, ${Math.min(255, bb + 14)}, 0.72)`,
+    accentHex: topHex,
+    accentHoverHex: topHex,
+    accentFgHex: fgHex,
+    accentSoftRgba: `rgba(${ar}, ${ag}, ${ab}, 0.18)`,
+    previewGradient: `linear-gradient(180deg, ${topHex} 50%, ${bottomHex} 50%)`,
+    cardBgHex: bottomHex,
+  };
+}
+
+export const CLASSIC_THEMES: ClassicThemeOption[] = [
+  // Row 1 — Solid swatches
+  makeSolidClassicTheme('classic_coral_red', 'Coral Red', '#F6644F', '#FFFFFF', '#3B1612'),
+  makeSolidClassicTheme('classic_warm_peach', 'Warm Peach', '#FF9955', '#18110B', '#3A2112'),
+  makeSolidClassicTheme('classic_sunny_amber', 'Sunny Amber', '#FFC72C', '#181408', '#33280B'),
+  makeSolidClassicTheme('classic_cocoa_brown', 'Cocoa Brown', '#8C4E37', '#FFFFFF', '#2B1812'),
+  makeSolidClassicTheme('classic_chartreuse_lime', 'Chartreuse Lime', '#C4D600', '#141706', '#252909'),
+  makeSolidClassicTheme('classic_fresh_lime', 'Fresh Lime', '#8CE043', '#101A09', '#1B2D0F'),
+
+  // Row 2 — Solid swatches
+  makeSolidClassicTheme('classic_leaf_green', 'Leaf Green', '#32C759', '#091A0E', '#0E2E17'),
+  makeSolidClassicTheme('classic_emerald_teal', 'Emerald Teal', '#10B981', '#FFFFFF', '#092B20'),
+  makeSolidClassicTheme('classic_sky_cyan', 'Sky Cyan', '#47B8F5', '#091824', '#0F2A3E'),
+  makeSolidClassicTheme('classic_cerulean_blue', 'Cerulean Blue', '#4A89DC', '#FFFFFF', '#10223B'),
+  makeSolidClassicTheme('classic_royal_indigo', 'Royal Indigo', '#4B6EF5', '#FFFFFF', '#121B40'),
+  makeSolidClassicTheme('classic_soft_violet', 'Soft Violet', '#9B6EF3', '#FFFFFF', '#21153B'),
+
+  // Row 3 — Solid & Split swatches
+  makeSolidClassicTheme('classic_orchid_magenta', 'Orchid Magenta', '#DA62E8', '#FFFFFF', '#321338'),
+  makeSolidClassicTheme('classic_rose_pink', 'Rose Pink', '#FF4D94', '#FFFFFF', '#381022'),
+  makeSolidClassicTheme('classic_cool_mist', 'Cool Mist', '#E2E6EC', '#111622', '#262C38'),
+  makeSplitClassicTheme('classic_coral_dark_split', 'Coral Dark Split', '#F6644F', '#252830', '#FFFFFF'),
+  makeSplitClassicTheme('classic_peach_dark_split', 'Peach Dark Split', '#FF9955', '#252830', '#18110B'),
+  makeSplitClassicTheme('classic_amber_dark_split', 'Amber Dark Split', '#FFC72C', '#2A2D2B', '#181408'),
+
+  // Row 4 — Split swatches
+  makeSplitClassicTheme('classic_cocoa_dark_split', 'Cocoa Dark Split', '#8C4E37', '#1E242B', '#FFFFFF'),
+  makeSplitClassicTheme('classic_lime_dark_split', 'Lime Dark Split', '#C4D600', '#252B25', '#141706'),
+  makeSplitClassicTheme('classic_fresh_lime_dark_split', 'Fresh Lime Dark Split', '#8CE043', '#232B26', '#101A09'),
+  makeSplitClassicTheme('classic_leaf_green_dark_split', 'Leaf Green Dark Split', '#32C759', '#1D2E2A', '#091A0E'),
+  makeSplitClassicTheme('classic_emerald_dark_split', 'Emerald Dark Split', '#10B981', '#172E2C', '#FFFFFF'),
+  makeSplitClassicTheme('classic_sky_cyan_dark_split', 'Sky Cyan Dark Split', '#47B8F5', '#172A3A', '#091824'),
+
+  // Row 5 — Split swatches
+  makeSplitClassicTheme('classic_cerulean_dark_split', 'Cerulean Dark Split', '#4A89DC', '#17283E', '#FFFFFF'),
+  makeSplitClassicTheme('classic_royal_indigo_dark_split', 'Royal Indigo Dark Split', '#4B6EF5', '#18223D', '#FFFFFF'),
+  makeSplitClassicTheme('classic_violet_dark_split', 'Violet Dark Split', '#9B6EF3', '#241E3B', '#FFFFFF'),
+  makeSplitClassicTheme('classic_orchid_dark_split', 'Orchid Dark Split', '#DA62E8', '#2F1D38', '#FFFFFF'),
+  makeSplitClassicTheme('classic_rose_pink_dark_split', 'Rose Pink Dark Split', '#FF4D94', '#331D2B', '#FFFFFF'),
+  makeSplitClassicTheme('classic_berry_plum_split', 'Berry Plum Split', '#E84A8A', '#262133', '#FFFFFF'),
+
+  // Row 6 — Split swatch
+  makeSplitClassicTheme('classic_deep_berry_split', 'Deep Berry Split', '#E54886', '#241F31', '#FFFFFF'),
 ];
 
 export const ACCENT_OPTIONS: AccentOption[] = [

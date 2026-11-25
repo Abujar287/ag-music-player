@@ -439,7 +439,7 @@ class GitHubUpdateManager(private val context: Context) {
         val file = pendingInstallFile
         val uri = pendingInstallUri
         if (file == null && uri == null) return
-        if (context.packageManager.canRequestPackageInstalls()) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || context.packageManager.canRequestPackageInstalls()) {
             pendingInstallFile = null
             pendingInstallUri = null
             launchInstallerIntent(file, uri)
@@ -451,7 +451,7 @@ class GitHubUpdateManager(private val context: Context) {
             _state.value = UpdateState.Error("Downloaded APK file not found.")
             return
         }
-        if (!context.packageManager.canRequestPackageInstalls()) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
             pendingInstallFile = apkFile
             pendingInstallUri = apkUri
             try {
@@ -475,6 +475,8 @@ class GitHubUpdateManager(private val context: Context) {
     private fun launchInstallerIntent(apkFile: File?, apkUri: Uri?) {
         try {
             val installUri: Uri = when {
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.N && apkFile != null && apkFile.exists() ->
+                    Uri.fromFile(apkFile)
                 apkUri != null -> apkUri
                 apkFile != null && apkFile.exists() -> FileProvider.getUriForFile(
                     context,
@@ -494,13 +496,17 @@ class GitHubUpdateManager(private val context: Context) {
         } catch (e: Exception) {
             if (apkUri != null && apkFile != null && apkFile.exists()) {
                 try {
-                    val fpUri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        apkFile
-                    )
+                    val fallbackUri = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+                        Uri.fromFile(apkFile)
+                    } else {
+                        FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            apkFile
+                        )
+                    }
                     val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
-                        setDataAndType(fpUri, "application/vnd.android.package-archive")
+                        setDataAndType(fallbackUri, "application/vnd.android.package-archive")
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)

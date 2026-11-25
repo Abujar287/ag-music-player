@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Menu,
   Search,
   X,
   Play,
@@ -55,6 +54,7 @@ import {
   ACCENT_OPTIONS,
   APP_VERSION,
   APP_VERSION_TAG,
+  CLASSIC_THEMES,
   DEFAULT_EQUALIZER,
   DEFAULT_PLAYLISTS,
   DEFAULT_SETTINGS,
@@ -176,7 +176,9 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerSection, setDrawerSection] = useState<DrawerSection>('menu');
+  const [drawerSection, setDrawerSection] = useState<DrawerSection>('theme');
+  const [menuDropdownOpen, setMenuDropdownOpen] = useState(false);
+  const [returnToMenuSource, setReturnToMenuSource] = useState<'sleep' | 'update' | null>(null);
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
 
   // Drill-down filter for Albums, Artists, Folders, Genres, or Playlist
@@ -244,6 +246,10 @@ export default function App() {
     if (updateState.status !== 'idle') {
       if (updateState.status !== 'downloading') {
         setUpdateState({ status: 'idle' });
+        if (returnToMenuSource === 'update') {
+          setReturnToMenuSource(null);
+          setMenuDropdownOpen(true);
+        }
       }
       return true;
     }
@@ -253,6 +259,10 @@ export default function App() {
     }
     if (sleepTimerOpen) {
       setSleepTimerOpen(false);
+      if (returnToMenuSource === 'sleep') {
+        setReturnToMenuSource(null);
+        setMenuDropdownOpen(true);
+      }
       return true;
     }
     if (songInfoTrack) {
@@ -288,6 +298,11 @@ export default function App() {
     }
     if (drawerOpen) {
       setDrawerOpen(false);
+      setMenuDropdownOpen(true);
+      return true;
+    }
+    if (menuDropdownOpen) {
+      setMenuDropdownOpen(false);
       return true;
     }
     if (searchOpen) {
@@ -552,8 +567,9 @@ export default function App() {
     } else {
       root.classList.remove('dark');
     }
+    const allThemes = [...SCENIC_THEMES, ...CLASSIC_THEMES];
     const scenic =
-      SCENIC_THEMES.find((s) => s.id === (settings.scenicThemeId ?? 'midnight_gold')) ??
+      allThemes.find((s) => s.id === (settings.scenicThemeId ?? 'midnight_gold')) ??
       SCENIC_THEMES[0];
     root.style.setProperty('--scenic-from', scenic.fromRgba);
     root.style.setProperty('--scenic-via', scenic.viaRgba);
@@ -1326,16 +1342,44 @@ export default function App() {
                 <ChevronLeft className="w-6 h-6" />
               </button>
             ) : (
-              <button
-                onClick={() => {
-                  setDrawerSection('menu');
+              <HeaderDropdownMenu
+                open={menuDropdownOpen}
+                onOpenChange={setMenuDropdownOpen}
+                settings={settings}
+                onScanAudio={() => scanDeviceStorage(true)}
+                onOpenEqualizer={() => {
+                  setDrawerSection('equalizer');
                   setDrawerOpen(true);
                 }}
-                aria-label="Open Navigation Menu"
-                className="min-h-[44px] min-w-[44px] -ml-2 flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
+                onOpenSleepTimer={() => {
+                  setReturnToMenuSource('sleep');
+                  setSleepTimerOpen(true);
+                }}
+                onOpenPlaybackSettings={() => {
+                  setDrawerSection('settings');
+                  setDrawerOpen(true);
+                }}
+                onOpenTheme={() => {
+                  setDrawerSection('theme');
+                  setDrawerOpen(true);
+                }}
+                onOpenWidget={() => {
+                  setDrawerSection('widget');
+                  setDrawerOpen(true);
+                }}
+                onCheckUpdate={() => {
+                  setReturnToMenuSource('update');
+                  void handleCheckUpdate();
+                }}
+                onOpenAbout={() => {
+                  setDrawerSection('about');
+                  setDrawerOpen(true);
+                }}
+                sleepTimerActive={sleepTimer.active}
+                sleepTimerRemaining={
+                  sleepTimer.remainingSec > 0 ? formatTime(sleepTimer.remainingSec) : undefined
+                }
+              />
             )}
 
             {!searchOpen && (
@@ -1397,46 +1441,13 @@ export default function App() {
             </div>
           ) : (
             <div className="flex items-center gap-1">
-              {!searchOpen && (
-                <button
-                  onClick={() => setSearchOpen(true)}
-                  aria-label="Search Music Library"
-                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
-                >
-                  <Search className="w-5 h-5" />
-                </button>
-              )}
-              <HeaderDropdownMenu
-                settings={settings}
-                onScanAudio={() => scanDeviceStorage(true)}
-                onOpenEqualizer={() => {
-                  setDrawerSection('equalizer');
-                  setDrawerOpen(true);
-                }}
-                onOpenSleepTimer={() => setSleepTimerOpen(true)}
-                onOpenPlaybackSettings={() => {
-                  setDrawerSection('settings');
-                  setDrawerOpen(true);
-                }}
-                onOpenTheme={() => {
-                  setDrawerSection('theme');
-                  setDrawerOpen(true);
-                }}
-                onOpenWidget={() => {
-                  setDrawerSection('widget');
-                  setDrawerOpen(true);
-                }}
-                onBackupRestore={() => showToast('Library backup exported to local JSON storage')}
-                onStorageCache={() => showToast('Cache cleaned (0.0 MB temp files cleared)')}
-                onOpenAbout={() => {
-                  setDrawerSection('about');
-                  setDrawerOpen(true);
-                }}
-                sleepTimerActive={sleepTimer.active}
-                sleepTimerRemaining={
-                  sleepTimer.remainingSec > 0 ? formatTime(sleepTimer.remainingSec) : undefined
-                }
-              />
+              <button
+                onClick={() => setSearchOpen(true)}
+                aria-label="Search Music Library"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:bg-white/10 transition-colors shrink-0"
+              >
+                <Search className="w-5 h-5" />
+              </button>
             </div>
           )}
         </div>
@@ -2140,6 +2151,10 @@ export default function App() {
         open={drawerOpen}
         initialSection={drawerSection}
         onClose={() => setDrawerOpen(false)}
+        onBack={() => {
+          setDrawerOpen(false);
+          setMenuDropdownOpen(true);
+        }}
         settings={settings}
         onUpdateSettings={(patch) => setSettings((prev) => ({ ...prev, ...patch }))}
         equalizer={equalizer}
@@ -2242,7 +2257,13 @@ export default function App() {
       <SleepTimerModal
         open={sleepTimerOpen}
         sleepTimer={sleepTimer}
-        onClose={() => setSleepTimerOpen(false)}
+        onClose={() => {
+          setSleepTimerOpen(false);
+          if (returnToMenuSource === 'sleep') {
+            setReturnToMenuSource(null);
+            setMenuDropdownOpen(true);
+          }
+        }}
         onSetTimer={(mode, customMinutes) => {
           if (mode === 'end_of_track') {
             setSleepTimer({ active: true, mode, remainingSec: 0 });
@@ -2270,7 +2291,13 @@ export default function App() {
 
       <UpdateModal
         state={updateState}
-        onClose={() => setUpdateState({ status: 'idle' })}
+        onClose={() => {
+          setUpdateState({ status: 'idle' });
+          if (returnToMenuSource === 'update') {
+            setReturnToMenuSource(null);
+            setMenuDropdownOpen(true);
+          }
+        }}
         onDownload={handleStartDownload}
         onTriggerInstall={handleTriggerInstall}
       />

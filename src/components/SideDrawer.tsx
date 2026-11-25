@@ -1,31 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   X,
-  Palette,
-  Sliders,
-  LayoutGrid,
-  Settings as SettingsIcon,
   RefreshCw,
-  Check,
   Play,
   Pause,
   SkipForward,
   SkipBack,
   Disc3,
-  ChevronRight,
   ChevronLeft,
   ShieldCheck,
-  Sparkles,
   FolderSearch,
-  Info,
 } from 'lucide-react';
 import {
-  ACCENT_OPTIONS,
   APP_VERSION_TAG,
   EQ_FREQUENCIES,
   EQ_PRESETS,
   LOGO_IMAGE_URL,
-  SCENIC_THEMES,
 } from '../data/defaultLibrary';
 import { AppSettings, EqualizerState, EqPresetId, Track } from '../types/music';
 import { formatTime } from '../utils/formatters';
@@ -33,17 +23,18 @@ import { CoverImage } from './CoverImage';
 import { ScenicBackdrop } from './ScenicBackdrop';
 import { ThemeSelector } from './ThemeSelector';
 
-export type DrawerSection = 'menu' | 'theme' | 'equalizer' | 'widget' | 'settings' | 'about';
+export type DrawerSection = 'theme' | 'equalizer' | 'widget' | 'settings' | 'about';
 
 interface SideDrawerProps {
   open: boolean;
   initialSection?: DrawerSection;
   onClose: () => void;
+  onBack?: () => void;
   settings: AppSettings;
   onUpdateSettings: (patch: Partial<AppSettings>) => void;
   equalizer: EqualizerState;
   onUpdateEqualizer: (next: EqualizerState) => void;
-  onCheckUpdate: () => void;
+  onCheckUpdate?: () => void;
   currentTrack: Track | null;
   positionSec?: number;
   isPlaying: boolean;
@@ -53,43 +44,13 @@ interface SideDrawerProps {
   onRescanLibrary?: () => void;
 }
 
-const MENU_LIST: Array<{
-  id: Exclude<DrawerSection, 'menu'>;
-  label: string;
-  subtitle: string;
-  icon: React.FC<{ className?: string }>;
-}> = [
-  {
-    id: 'theme',
-    label: 'Appearance & Themes',
-    subtitle: 'Dark, OLED Black, Dynamic Accent & previews',
-    icon: Palette,
-  },
-  {
-    id: 'equalizer',
-    label: 'Equalizer',
-    subtitle: '5-band DSP curve, presets & bass boost',
-    icon: Sliders,
-  },
-  {
-    id: 'widget',
-    label: 'Home Screen Widget',
-    subtitle: '2×2 & 4×2 widget styles',
-    icon: LayoutGrid,
-  },
-  {
-    id: 'settings',
-    label: 'Settings',
-    subtitle: 'Audio, playback & library',
-    icon: SettingsIcon,
-  },
-  {
-    id: 'about',
-    label: 'About',
-    subtitle: 'App info, version & check updates',
-    icon: Info,
-  },
-];
+const SECTION_TITLES: Record<DrawerSection, string> = {
+  theme: 'Theme',
+  equalizer: 'Audio & Equalizer',
+  widget: 'Home Screen Widget',
+  settings: 'Playback Settings',
+  about: 'About',
+};
 
 const SCENIC_ACCENT_MAP: Record<string, string> = {
   midnight_gold: 'gold',
@@ -278,13 +239,13 @@ const ToggleSwitchRow: React.FC<ToggleSwitchProps> = ({
 
 export const SideDrawer: React.FC<SideDrawerProps> = ({
   open,
-  initialSection = 'menu',
+  initialSection = 'theme',
   onClose,
+  onBack,
   settings,
   onUpdateSettings,
   equalizer,
   onUpdateEqualizer,
-  onCheckUpdate,
   currentTrack,
   positionSec = 0,
   isPlaying,
@@ -317,7 +278,6 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
   if (!open) return null;
 
   const handleClose = () => {
-    setActiveSection('menu');
     onClose();
   };
 
@@ -325,7 +285,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
     const mappedAccent = SCENIC_ACCENT_MAP[scenicThemeId];
     onUpdateSettings({
       scenicThemeId,
-      ...(mappedAccent ? { accentId: mappedAccent } : {}),
+      accentId: mappedAccent ?? scenicThemeId,
     });
   };
 
@@ -350,10 +310,8 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
     });
   };
 
-  const activeMenuMeta = MENU_LIST.find((m) => m.id === activeSection);
+  const activeSectionTitle = SECTION_TITLES[activeSection];
   const currentScenicId = settings.scenicThemeId ?? 'midnight_gold';
-  const currentThemeObj =
-    SCENIC_THEMES.find((t) => t.id === currentScenicId) ?? SCENIC_THEMES[0];
   const currentWidgetStyle = settings.widgetStyle ?? 'frosted';
   const currentAudioQuality = settings.audioQuality ?? 'lossless';
   const bassBoostValue = equalizer.bassBoost ?? 40;
@@ -415,55 +373,27 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
           </button>
         </div>
 
-        {/* Sub-view Back Bar */}
-        {activeSection !== 'menu' && (
-          <div className="relative z-10 px-3 py-2 border-b border-white/10 bg-white/[0.04] backdrop-blur-md flex items-center gap-2">
-            <button
-              onClick={() => setActiveSection('menu')}
-              className="min-h-[40px] px-2.5 rounded-xl hover:bg-white/10 flex items-center gap-1.5 text-sm font-semibold text-white"
-            >
-              <ChevronLeft className="w-4 h-4 text-[var(--accent)]" />
-              <span>Menu</span>
-            </button>
-            <span className="text-xs text-white/45">/</span>
-            <span className="text-sm font-semibold text-white">{activeMenuMeta?.label}</span>
-          </div>
-        )}
+        {/* Section Header Bar */}
+        <div className="relative z-10 px-3 py-2 border-b border-white/10 bg-white/[0.04] backdrop-blur-md flex items-center gap-2">
+          <button
+            onClick={onBack ?? handleClose}
+            className="min-h-[40px] px-2.5 rounded-xl hover:bg-white/10 flex items-center gap-1.5 text-sm font-semibold text-white"
+          >
+            <ChevronLeft className="w-4 h-4 text-[var(--accent)]" />
+            <span>Back</span>
+          </button>
+          <span className="text-xs text-white/45">/</span>
+          <span className="text-sm font-semibold text-white">{activeSectionTitle}</span>
+        </div>
 
         {/* Scrollable Content */}
         <div className="relative z-10 flex-1 overflow-y-auto px-4 py-4 space-y-5">
-          {/* MAIN DRAWER MENU */}
-          {activeSection === 'menu' && (
-            <nav aria-label="Drawer Menu" className="space-y-3">
-              {MENU_LIST.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveSection(item.id)}
-                    className="w-full min-h-[68px] px-4 py-3.5 flex items-center gap-4 rounded-2xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 transition-all text-left group"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-sm">
-                      <Icon className="w-5 h-5 text-[var(--accent)]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-white group-hover:text-[var(--accent)] transition-colors">
-                        {item.label}
-                      </p>
-                      <p className="text-xs text-white/60 truncate mt-0.5">{item.subtitle}</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-white/45 group-hover:translate-x-1 group-hover:text-[var(--accent)] transition-all shrink-0" />
-                  </button>
-                );
-              })}
-            </nav>
-          )}
 
           {/* THEME SELECTOR SCREEN */}
           {activeSection === 'theme' && (
             <div className="space-y-4 pb-6">
               <div>
-                <h3 className="text-base font-bold text-white mb-1">Select Theme</h3>
+                <h3 className="text-base font-bold text-white mb-1">Classic Themes</h3>
                 <p className="text-xs text-white/60 mb-5">
                   Tap any theme to apply instantly across the app
                 </p>
@@ -951,20 +881,6 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                   <span>Build Target</span>
                   <span className="text-white/90">Android SDK 35 (Vite PWA)</span>
                 </div>
-              </div>
-
-              <div className="space-y-2.5">
-                <button
-                  type="button"
-                  onClick={onCheckUpdate}
-                  className="w-full min-h-[48px] px-4 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] text-sm font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  <span>Check for Updates</span>
-                </button>
-                <p className="text-[11px] text-white/45">
-                  Direct GitHub release checker & automated APK updater
-                </p>
               </div>
             </div>
           )}

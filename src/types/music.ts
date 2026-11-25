@@ -81,6 +81,12 @@ export interface ScenicThemeOption {
   cardBgHex?: string;
 }
 
+export interface ClassicThemeOption extends ScenicThemeOption {
+  topHex: string;
+  bottomHex?: string;
+  isSplit: boolean;
+}
+
 export interface AppSettings {
   themeMode: 'dark' | 'light';
   accentId: string;

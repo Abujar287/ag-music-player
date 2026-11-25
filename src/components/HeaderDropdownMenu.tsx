@@ -7,15 +7,17 @@ import {
   Settings as SettingsIcon,
   Palette,
   LayoutGrid,
-  CloudUpload,
-  HardDrive,
+  Download,
   Info,
   ChevronRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AppSettings } from '../types/music';
+import { CLASSIC_THEMES } from '../data/defaultLibrary';
 
 interface HeaderDropdownMenuProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   settings: AppSettings;
   onScanAudio: () => void;
   onOpenEqualizer: () => void;
@@ -23,14 +25,15 @@ interface HeaderDropdownMenuProps {
   onOpenPlaybackSettings: () => void;
   onOpenTheme: () => void;
   onOpenWidget: () => void;
-  onBackupRestore: () => void;
-  onStorageCache: () => void;
+  onCheckUpdate: () => void;
   onOpenAbout: () => void;
   sleepTimerActive: boolean;
   sleepTimerRemaining?: string;
 }
 
 export const HeaderDropdownMenu: React.FC<HeaderDropdownMenuProps> = ({
+  open,
+  onOpenChange,
   settings,
   onScanAudio,
   onOpenEqualizer,
@@ -38,13 +41,24 @@ export const HeaderDropdownMenu: React.FC<HeaderDropdownMenuProps> = ({
   onOpenPlaybackSettings,
   onOpenTheme,
   onOpenWidget,
-  onBackupRestore,
-  onStorageCache,
+  onCheckUpdate,
   onOpenAbout,
   sleepTimerActive,
   sleepTimerRemaining,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = open !== undefined ? open : internalOpen;
+  const setIsOpen = React.useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) => {
+      const resolved = typeof next === 'function' ? next(isOpen) : next;
+      if (onOpenChange) {
+        onOpenChange(resolved);
+      } else {
+        setInternalOpen(resolved);
+      }
+    },
+    [isOpen, onOpenChange]
+  );
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   // Close when clicking outside or pressing Escape
@@ -69,10 +83,12 @@ export const HeaderDropdownMenu: React.FC<HeaderDropdownMenuProps> = ({
       document.removeEventListener('mousedown', handleOutsideClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, setIsOpen]);
 
-  const activeThemeLabel =
-    settings.scenicThemeId === 'obsidian_dark'
+  const matchedClassic = CLASSIC_THEMES.find((t) => t.id === settings.scenicThemeId);
+  const activeThemeLabel = matchedClassic
+    ? matchedClassic.label
+    : settings.scenicThemeId === 'obsidian_dark'
       ? 'Dark'
       : settings.scenicThemeId === 'oled_black'
         ? 'OLED'
@@ -81,7 +97,7 @@ export const HeaderDropdownMenu: React.FC<HeaderDropdownMenuProps> = ({
           : 'Dynamic';
 
   return (
-    <div className="relative inline-block text-left" ref={menuRef}>
+    <div className="relative inline-block text-left -ml-2 shrink-0" ref={menuRef}>
       {/* Trigger Button */}
       <button
         type="button"
@@ -102,8 +118,8 @@ export const HeaderDropdownMenu: React.FC<HeaderDropdownMenuProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: -6 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            style={{ transformOrigin: 'top right' }}
-            className="absolute right-0 mt-2 w-72 sm:w-80 rounded-[16px] bg-[#0A0D18]/95 backdrop-blur-2xl border border-white/12 shadow-[0_12px_40px_rgba(0,0,0,0.6)] py-2 text-white z-50 overflow-hidden"
+            style={{ transformOrigin: 'top left' }}
+            className="absolute left-0 mt-2 w-72 sm:w-80 rounded-[16px] bg-[#0A0D18]/95 backdrop-blur-2xl border border-white/12 shadow-[0_12px_40px_rgba(0,0,0,0.6)] py-2 text-white z-50 overflow-hidden"
           >
             {/* Group 1: Library Actions */}
             <div className="px-1.5 py-1">
@@ -250,34 +266,17 @@ export const HeaderDropdownMenu: React.FC<HeaderDropdownMenuProps> = ({
                 type="button"
                 onClick={() => {
                   setIsOpen(false);
-                  onBackupRestore();
+                  onCheckUpdate();
                 }}
                 className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-white/90 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors text-left"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center shrink-0">
-                    <CloudUpload className="w-4 h-4 text-[var(--accent)]" />
+                    <Download className="w-4 h-4 text-[var(--accent)]" />
                   </div>
-                  <span>Backup & Restore</span>
+                  <span>Check for Updates</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-white/35" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsOpen(false);
-                  onStorageCache();
-                }}
-                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-white/90 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center shrink-0">
-                    <HardDrive className="w-4 h-4 text-[var(--accent)]" />
-                  </div>
-                  <span>Storage & Cache</span>
-                </div>
-                <span className="text-[11px] text-white/50 font-mono-tabular">Optimized</span>
               </button>
 
               <button

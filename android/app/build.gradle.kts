@@ -12,7 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "com.ag.musicplayer"
-        minSdk = 26
+        minSdk = 21
         targetSdk = 35
         versionCode = ciVersionCode
         versionName = ciVersionName
@@ -31,6 +31,9 @@ android {
                 storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "agmusicplayer"
                 keyAlias = System.getenv("KEY_ALIAS") ?: "agmusic"
                 keyPassword = System.getenv("KEY_PASSWORD") ?: "agmusicplayer"
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }

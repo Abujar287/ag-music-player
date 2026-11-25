@@ -159,7 +159,7 @@ class MediaScanner(private val context: Context) {
     }
 
     fun setAsRingtone(track: Track): Boolean {
-        if (!Settings.System.canWrite(context)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
             val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
                 data = Uri.parse("package:${context.packageName}")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
