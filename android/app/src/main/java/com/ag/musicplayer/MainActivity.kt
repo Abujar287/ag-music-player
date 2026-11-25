@@ -191,9 +191,9 @@ class MainActivity : ComponentActivity() {
                 allowFileAccess = true
                 allowContentAccess = true
                 allowFileAccessFromFileURLs = true
-                allowUniversalAccessFromFileURLs = true
+                allowUniversalAccessFromFileURLs = false
                 mediaPlaybackRequiresUserGesture = false
-                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 setSupportZoom(false)
             }
             webViewClient = object : WebViewClient() {

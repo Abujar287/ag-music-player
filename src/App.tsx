@@ -60,6 +60,7 @@ import {
   DEFAULT_SETTINGS,
   DEFAULT_TRACKS,
   GITHUB_LATEST_API,
+  LOGO_IMAGE_URL,
   SCENIC_THEMES,
 } from './data/defaultLibrary';
 import {
@@ -1379,6 +1380,14 @@ export default function App() {
                 sleepTimerRemaining={
                   sleepTimer.remainingSec > 0 ? formatTime(sleepTimer.remainingSec) : undefined
                 }
+              />
+            )}
+
+            {!searchOpen && activeTab === null && !drillFilter && (
+              <img
+                src={LOGO_IMAGE_URL}
+                alt="AG Music Player"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-[var(--accent)]/60 shrink-0 shadow-sm"
               />
             )}
 

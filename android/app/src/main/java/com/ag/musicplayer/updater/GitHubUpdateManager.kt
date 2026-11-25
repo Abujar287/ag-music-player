@@ -8,7 +8,6 @@ import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
-import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.ag.musicplayer.BuildConfig
 import kotlinx.coroutines.Dispatchers
@@ -452,18 +451,15 @@ class GitHubUpdateManager(private val context: Context) {
             return
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
-            pendingInstallFile = apkFile
-            pendingInstallUri = apkUri
+            pendingInstallFile = null
+            pendingInstallUri = null
             try {
-                val permissionIntent = Intent(
-                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                    Uri.parse("package:${context.packageName}")
-                ).apply {
+                val downloadsIntent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                context.startActivity(permissionIntent)
+                context.startActivity(downloadsIntent)
             } catch (_: Exception) {
-                _state.value = UpdateState.Error("Enable 'Install unknown apps' permission in Settings.")
+                _state.value = UpdateState.Error("Update downloaded to Downloads folder. Tap the APK there to install.")
             }
             return
         }
